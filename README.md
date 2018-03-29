@@ -6,23 +6,9 @@
 [![docker badge][docker_badge]][docker_base]
 [![docker badge][automated_badge]][docker_base]
 
-Program for post-processing of SNV data from myTYPE with myeloma-specific annotations and filters
+Script for processing SNV data from myeloma sequencing panel myTYPE with myeloma-specific annotations and filters.
 
-## Usage
-
-Run with [containers][docker_base]:
-
-        # docker usage
-        docker run evenrus/myeloma_snv --help
-
-        # singularity usage
-        singularity run docker://evenrus/myeloma_snv --help
-
-See [docker2singularity] if you want to use a [singularity] image instead of using the `docker://` prefix.
-
-## Contributing
-
-Contributions are welcome, and they are greatly appreciated, check our [contributing guidelines](.github/CONTRIBUTING.md)!
+Not yet fully functional; development on-going.
 
 ## Credits
 
