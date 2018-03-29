@@ -1,0 +1,16 @@
+[paths]
+source =
+   myeloma_snv
+   /test/myeloma_snv
+
+[run]
+source =
+    myeloma_snv
+
+omit =
+    *myeloma_snv/__main__.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
