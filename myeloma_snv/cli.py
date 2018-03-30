@@ -28,15 +28,15 @@ from myeloma_snv import commands
 
 @click.command()
 @click.option(
-    "--outfile",
+    "--outdir",
     required=True,
     type=click.Path(exists=True),
-    help="Path to output .csv file.")
+    help="Path to output directory.")
 @click.option(
     "--infile",
     required=True,
     type=click.Path(exists=True),
-    help="Path for input .csv-file")
+    help="Path to input file with merged SNV calls in tsv.gz or csv format")
 @click.option(
     "--skiplines",
     default=0,
@@ -48,22 +48,25 @@ from myeloma_snv import commands
     show_default=True,
     type=click.Path(exists=True),
     help="Excel file with column 'GENES'. Used to filter out variants in other genes.")
+@click.option(
+    "--lohr",
+    default='references/lohr_variants.xlsx',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Excel file with raw data from lohr et al 2014 - changed from hg18 to hg19 format.")
 @click.version_option(__version__)
 
-def main(outfile, infile, skiplines, genes):
+def main(outdir, infile, skiplines, genes, lohr):
     r"""
     rogram for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
     """
     commands.process(
         infile=infile,
         skiplines=skiplines,
-        outfile=outfile,
+        outdir=outdir,
         genes=genes,
+        lohr=lohr
         )
-
-if __name__ == "__main__":
-    main() # pylint: disable=no-value-for-parameter
-
 
 #### ANNOTATIONS OF INPUT FILE ####
 ## Another general purpose post-processing script annotates with:
