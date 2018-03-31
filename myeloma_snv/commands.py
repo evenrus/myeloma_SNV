@@ -5,6 +5,7 @@ import click
 import pandas as pd
 import numpy as np
 import re
+import os
 
 def import_snv(path, skiplines):
     #determine filetype and import, returns pandas dataFrame
@@ -17,7 +18,7 @@ def import_snv(path, skiplines):
         except NameError:
             raise Exception(f'Error when importing file {path}')
         else:
-            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Annotating...\n')
+            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Processing...')
             return(snv)
     elif re.search('.tsv.gz$', path):
         snv = pd.read_csv(
@@ -30,10 +31,31 @@ def import_snv(path, skiplines):
         except NameError:
             raise Exception(f'Error when importing file {path}')
         else:
-            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Annotating...\n')
+            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Processing...')
             return(snv)
     else:
         raise Exception(f'Input file {path} has unsupported extension: try .csv or .tsv.gz')
+
+def annotate_COSMIC(snv):
+    #make column HEME_EXACT
+    heme_exact = []
+    cosmic = snv['COSMIC'].tolist()
+    for entry in cosmic:
+        if pd.isnull(entry):
+            heme_exact.append(None)
+        else:
+            first=entry.split('|')[0]
+            if re.search('^GENOMIC_EXACT', first):
+                if re.search('HAEMATOPOIETIC_AND_LYMPHOID_TISSUE', first):
+                    count=re.search('(?<=HAEMATOPOIETIC_AND_LYMPHOID_TISSUE=)\w+', first)[0]
+                    heme_exact.append(count)
+                else:
+                    heme_exact.append(None)
+            else:
+                heme_exact.append(None)
+    snv['HEME_EXACT']=heme_exact
+    return(snv)
+
 
 def annotate_maf(snv):
     #adds column with maximal MAF of variant in any normal database
@@ -48,24 +70,16 @@ def filter_panel(snv, genes):
     #args: snv = snv file; genes = path to file with genes to include
     panel = pd.read_excel(io=genes)
     keep = panel['GENE']
-    snv_out = snv[snv.GENE.isin(keep)]
-    print('Removed %(removed)d calls in genes outside of myTYPE panel. Remaining: %(remaining)d\n' % 
-            {'removed' : snv.shape[0]-snv_out.shape[0], 'remaining' : snv_out.shape[0]})
-    return(snv_out)
+    snv['MFLAG_PANEL'] = np.where(snv.GENE.isin(keep), 0, 1)
+    return(snv)
 
 def filter_MAF(snv):
-    snv_out=snv.loc[snv['MAX_MAF'] <= 0.03]
-    print('Removed %(removed)d calls with MAF > 3 %% in EXAC or 1000 genomes. Remaining: %(remaining)d\n' %
-            {'removed' : snv.shape[0]-snv_out.shape[0], 'remaining' : snv_out.shape[0]})
-    return(snv_out)
-
-    #print(f'This is a {snv} blabla {snv_out}') -- new way of doing the %% thing. 
+    snv['MFLAG_MAF'] = np.where(snv['MAX_MAF'] <= 0.03, 0, 1)
+    return(snv)
 
 def filter_MAF_COSMIC(snv):
-    snv_out=snv.drop(snv[(snv['MAX_MAF'] > 0.001) & (snv['COSMIC'].isnull())].index)
-    print('Removed %(removed)d calls with MAF > 0.1 %% in EXAC or 1000 genomes that are not present in COSMIC. Remaining %(remaining)d\n' %
-            {'removed' : snv.shape[0]-snv_out.shape[0], 'remaining' : snv_out.shape[0]})
-    return(snv_out)
+    snv['MFLAG_MAFCOS'] = np.where((snv['MAX_MAF'] > 0.001) & (snv['COSMIC'].isnull()), 1, 0)
+    return(snv)
 
 def namecore(infile):
     name = infile.split('/')[-1]
@@ -75,19 +89,27 @@ def namecore(infile):
         return(re.sub('.tsv.gz$', '', name))
 
 def filter_export(snv, outdir, name):
-    good=snv
-    bad=snv
+    good=snv[snv.filter(regex='MFLAG').sum(axis=1) == 0]
+    bad=snv[snv.filter(regex='MFLAG').sum(axis=1) > 0]
     if not re.search('/$', outdir):
         outdir =''.join([outdir,'/'])
     goodname=''.join([outdir, name, '_goodcalls.csv'])
     badname=''.join([outdir, name, '_badcalls.csv'])
+    textname=''.join([outdir, name, '_report.txt'])
     good.to_csv(
         path_or_buf=goodname,
         index=False)
     bad.to_csv(
         path_or_buf=badname,
         index=False)
-    print('####\nSNV processing complete')
+    with open(textname, 'w') as f:
+        f.write(f'Imported SNV calls: {snv.shape[0]}\n')
+        f.write('Flagging variants for filtering:\n')
+        f.write(f'MFLAG: Gene not in panel: {snv["MFLAG_PANEL"].sum()}\n')
+        f.write(f'MFLAG: MAF > 3 % in exax/1000genomes: {snv["MFLAG_MAF"].sum()}\n')
+        f.write(f'MFLAG: MAF > 0.1 % and not in COSMIC: {snv["MFLAG_MAFCOS"].sum()}\n')
+        f.write(f'Calls filtered out: {bad.shape[0]}\n')
+        f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
 
 # Main Function
@@ -102,10 +124,9 @@ def process(
     snv = import_snv(infile, skiplines)
 
     ##ANNOTATIONS
-    #snv = annotate_COSMIC(snv) - make column HEME_EXACT
+    snv = annotate_COSMIC(snv) 
     snv = annotate_maf(snv)
     #snv = annotate_lohr(snv, lohr)
-    print('####\nAnnotation complete, running filters...\n')
 
     ##FILTERS
     snv = filter_panel(snv, genes) #Remove calls outside of myTYPE panel
@@ -119,3 +140,4 @@ def process(
     ##OUTPUT
     name = namecore(infile)
     filter_export(snv, outdir, name)
+    print('SNV processing complete')
