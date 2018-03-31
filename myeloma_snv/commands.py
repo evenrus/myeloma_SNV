@@ -56,6 +56,13 @@ def annotate_COSMIC(snv):
     snv['HEME_EXACT']=heme_exact
     return(snv)
 
+def annotate_genefreq(snv, genes):
+    #adds column with maximal mutation frequency in gene as previously published in large MM studies.
+    freqlist = pd.read_excel(io=genes)
+    freqlist['MAX_MUTFREQ']=round(freqlist.filter(regex='freq').max(axis=1),1)
+    freqlist=freqlist[['GENE', 'MAX_MUTFREQ']]
+    snv=pd.merge(snv, freqlist)
+    return(snv)
 
 def annotate_maf(snv):
     #adds column with maximal MAF of variant in any normal database
@@ -125,6 +132,7 @@ def process(
 
     ##ANNOTATIONS
     snv = annotate_COSMIC(snv) 
+    snv = annotate_genefreq(snv, genes)
     snv = annotate_maf(snv)
     #snv = annotate_lohr(snv, lohr)
 
