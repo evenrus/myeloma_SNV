@@ -49,6 +49,12 @@ from myeloma_snv import commands
     type=click.Path(exists=True),
     help="Excel file with column 'GENES'. Used to filter out variants in other genes.")
 @click.option(
+    "--igh",
+    default='references/MM_IGH_intron_nonCHR.bed',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="BED file with IGH locus to filter out overlapping calls.")
+@click.option(
     "--mmrf",
     default='references/MMRF_CoMMpass_IA9_All_Canonical_Variants.txt',
     show_default=True,
@@ -74,7 +80,7 @@ from myeloma_snv import commands
     help="Path to good normal SNV calls in tsv.gz format")
 @click.version_option(__version__)
 
-def main(outdir, infile, skiplines, genes, mmrf, bolli, lohr, normals):
+def main(outdir, infile, skiplines, genes, igh, mmrf, bolli, lohr, normals):
     r"""
     rogram for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
     """
@@ -83,6 +89,7 @@ def main(outdir, infile, skiplines, genes, mmrf, bolli, lohr, normals):
         skiplines=skiplines,
         outdir=outdir,
         genes=genes,
+        igh=igh,
         mmrf=mmrf,
         bolli=bolli,
         lohr=lohr,
@@ -93,22 +100,19 @@ def main(outdir, infile, skiplines, genes, mmrf, bolli, lohr, normals):
 ## Another general purpose post-processing script annotates with:
 ## COSMIC, EXAC, 1000 genomes, VAF and other variant metadata
 
-
 #### ANNOTATIONS IN THIS SCRIPT ####
-#16 internal normals sequenced by myTYPE
+##DONE## 16 internal normals sequenced by myTYPE
 ##DONE## MMRF (889 WES, matched normal, not manually curated)
 ##DONE## Bolli (418 targeted seq, manually curated)
-
 #Lohr ~200 WES/WGS
-
 
 #### FILTERS ####
 #Remove:
-# -calls in IGH locus
-# -synonymous variants
+##DONE## -calls in IGH locus
 ##NEW## -calls in genes not in myTYPE panel
 ##DONE## -calls with > 3 % MAF in Exac or 1000 genomes
 ##DONE## -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
-# -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
-# -calls present in at least 4 internal normals
-# -non-pass calls present in at least 1 normal AND not in COSMIC, MMRF, etc. ##Redundant?
+##DONE## -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
+##DONE## -calls present in at least 4 internal normals
+##Redundant## -non-pass calls present in at least 1 normal AND not in COSMIC, MMRF, etc.
+##Redundant## -synonymous variants 
