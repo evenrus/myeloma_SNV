@@ -16,7 +16,7 @@ Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
 """
 
 # Program for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
-# v 2.4.18
+# v 3.4.18
 # Current version takes input file already subjected to some processing:
 ## - Annotated with COSMIC, 1000g and EXAC.
 ## - Removed synonymous (AND IGH locus?)
@@ -49,6 +49,12 @@ from myeloma_snv import commands
     type=click.Path(exists=True),
     help="Excel file with column 'GENES'. Used to filter out variants in other genes.")
 @click.option(
+    "--genes_bed",
+    default='references/targets_mytype_clean.bed',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Bed file containing panel regions, to filter out outside calls.")
+@click.option(
     "--igh",
     default='references/MM_IGH_intron_nonCHR.bed',
     show_default=True,
@@ -80,7 +86,7 @@ from myeloma_snv import commands
     help="Path to good normal SNV calls in tsv.gz format")
 @click.version_option(__version__)
 
-def main(outdir, infile, skiplines, genes, igh, mmrf, bolli, lohr, normals):
+def main(outdir, infile, skiplines, genes, genes_bed, igh, mmrf, bolli, lohr, normals):
     r"""
     rogram for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
     """
@@ -89,6 +95,7 @@ def main(outdir, infile, skiplines, genes, igh, mmrf, bolli, lohr, normals):
         skiplines=skiplines,
         outdir=outdir,
         genes=genes,
+        genes_bed=genes_bed,
         igh=igh,
         mmrf=mmrf,
         bolli=bolli,
@@ -104,15 +111,16 @@ def main(outdir, infile, skiplines, genes, igh, mmrf, bolli, lohr, normals):
 ##DONE## 16 internal normals sequenced by myTYPE
 ##DONE## MMRF (889 WES, matched normal, not manually curated)
 ##DONE## Bolli (418 targeted seq, manually curated)
+
 #Lohr ~200 WES/WGS
 
 #### FILTERS ####
-#Remove:
 ##DONE## -calls in IGH locus
-##NEW## -calls in genes not in myTYPE panel
+##DONE## -calls in genes not in myTYPE panel
 ##DONE## -calls with > 3 % MAF in Exac or 1000 genomes
 ##DONE## -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
 ##DONE## -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
 ##DONE## -calls present in at least 4 internal normals
+
 ##Redundant## -non-pass calls present in at least 1 normal AND not in COSMIC, MMRF, etc.
 ##Redundant## -synonymous variants 

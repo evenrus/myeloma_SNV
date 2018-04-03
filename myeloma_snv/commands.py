@@ -228,11 +228,16 @@ def annotate_lohr(snv, lohr):
     #args snv = snv file; lohr = raw data from lohr 2014 in hg19 format.
     return(snv) 
 
-def filter_panel(snv, genes):
+def filter_panel(snv, genes_bed):
     #args: snv = snv file; genes = path to file with genes to include
-    panel = pd.read_excel(io=genes)
-    keep = panel['GENE']
-    snv['MFLAG_PANEL'] = np.where(snv.GENE.isin(keep), 0, 1)
+    snv_bed = snv[["CHR", "START", "END", "ID_VARIANT"]]
+    snv_bed = pyb.BedTool.from_dataframe(snv_bed)
+    genes = pyb.BedTool(genes_bed)
+    snv_inter = snv_bed.intersect(genes, u=True) ## Will not run due incomplete case in input file.
+    flaglist = []
+    if not snv_inter.head(n=1, as_string = True) == '':
+        flaglist = pyb.BedTool.to_dataframe(snv_inter)['name']
+    snv['MFLAG_PANEL'] = np.where(snv.ID_VARIANT.isin(flaglist), 0, 1)
     return(snv)
 
 def filter_IGH(snv, IGH_path):
@@ -241,8 +246,10 @@ def filter_IGH(snv, IGH_path):
     snv_bed = pyb.BedTool.from_dataframe(snv_bed)
     igh = pyb.BedTool(IGH_path)
     snv_inter = snv_bed.intersect(igh, u=True)
-    snv_inter = pyb.BedTool.to_dataframe(snv_inter)['name']
-    snv['MFLAG_IGH'] = np.where(snv.ID_VARIANT.isin(snv_inter), 1, 0)
+    flaglist = []
+    if not snv_inter.head(n=1, as_string = True) == '':
+        flaglist = pyb.BedTool.to_dataframe(snv_inter)['name']
+    snv['MFLAG_IGH'] = np.where(snv.ID_VARIANT.isin(flaglist), 1, 0)
     return(snv)
 
 def filter_MAF(snv):
@@ -304,6 +311,7 @@ def process(
         skiplines,
         outdir,
         genes,
+        genes_bed,
         igh,
         mmrf,
         bolli,
@@ -323,12 +331,13 @@ def process(
     #snv = annotate_lohr(snv, lohr) #Waiting for wile from Teja.
 
     ##FILTERS
-    snv = filter_panel(snv, genes) #Remove calls outside of myTYPE panel
+    snv = filter_panel(snv, genes_bed) #Remove calls outside of myTYPE panel
     snv = filter_IGH(snv, igh) #Remove calls in IGH locus
     snv = filter_MAF(snv) #Remove if MAF > 3 %.
     snv = filter_MAF_COSMIC(snv) #Remove if >0.1 % MAF and not in COSMIC
     snv = filter_nonpass(snv) #Remove non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
     snv = filter_normals(snv) #Remove calls present in at least 4 internal normals
+    
     #snv = filter_synonymous(snv) ## Already done with input - Not necessary?
 
     ##OUTPUT
