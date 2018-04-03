@@ -16,7 +16,7 @@ Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
 """
 
 # Program for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
-# v 29.3.18
+# v 2.4.18
 # Current version takes input file already subjected to some processing:
 ## - Annotated with COSMIC, 1000g and EXAC.
 ## - Removed synonymous (AND IGH locus?)
@@ -53,16 +53,28 @@ from myeloma_snv import commands
     default='references/MMRF_CoMMpass_IA9_All_Canonical_Variants.txt',
     show_default=True,
     type=click.Path(exists=True),
-    help="Path to MMRF reference file in .tsv format")
+    help="Path to MMRF reference file, tab separated text")
+@click.option(
+    "--bolli",
+    default='references/bolli_mutations.txt',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Path to Bolli reference file, tab separated text")
 @click.option(
     "--lohr",
     default='references/lohr_variants.xlsx',
     show_default=True,
     type=click.Path(exists=True),
     help="Excel file with raw data from lohr et al 2014 - changed from hg18 to hg19 format.")
+@click.option(
+    "--normals",
+    default='references/good_normals__cosmic_81_exac_03__11.tgd.unfiltered.tsv.gz',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Path to good normal SNV calls in tsv.gz format")
 @click.version_option(__version__)
 
-def main(outdir, infile, skiplines, genes, mmrf, lohr):
+def main(outdir, infile, skiplines, genes, mmrf, bolli, lohr, normals):
     r"""
     rogram for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
     """
@@ -72,7 +84,9 @@ def main(outdir, infile, skiplines, genes, mmrf, lohr):
         outdir=outdir,
         genes=genes,
         mmrf=mmrf,
-        lohr=lohr
+        bolli=bolli,
+        lohr=lohr,
+        normals=normals
         )
 
 #### ANNOTATIONS OF INPUT FILE ####
@@ -82,8 +96,8 @@ def main(outdir, infile, skiplines, genes, mmrf, lohr):
 
 #### ANNOTATIONS IN THIS SCRIPT ####
 #16 internal normals sequenced by myTYPE
-#MMRF (889 WES, matched normal, not manually curated)
-#Bolli (418 targeted seq, manually curated)
+##DONE## MMRF (889 WES, matched normal, not manually curated)
+##DONE## Bolli (418 targeted seq, manually curated)
 
 #Lohr ~200 WES/WGS
 

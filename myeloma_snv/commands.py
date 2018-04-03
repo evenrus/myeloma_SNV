@@ -7,6 +7,86 @@ import numpy as np
 import re
 import os
 
+def annotate_normals(snv, path_normals):
+    normals = pd.read_csv(
+        filepath_or_buffer=path_normals,
+        compression='gzip',
+        sep='\t',
+        skiprows=1)
+    normals_counts=normals.groupby(["CHR","START","REF","ALT"]).size().reset_index(name="count")
+    normals_counts=normals_counts[["CHR", "START","count"]].set_index(['CHR','START'])
+    normals_median=normals.groupby(['CHR','START'])['TARGET_VAF'].median()
+    normalC = []
+    normalVAF = [] 
+    for record in snv.itertuples(index=False, name=None):
+        try:
+            chrom=str(record[3])
+            pos=int(record[4])
+            tempC = normals_counts.loc[(chrom,pos),"count"]
+            print(tempC.ix[0])
+            tempC = tempC.ix[0]
+            normalC.append(str(tempC))
+            normalVAF.append(str(normals_median.loc[(chrom,pos)]))
+        except:
+            normalC.append("0")
+            normalVAF.append("0")
+    snv["Normals_Frequency"] = normalC
+    snv["Normals_median_VAF"] = normalVAF
+    return(snv)
+    
+def annotate_bolli(snv, path_bolli):
+    bolli = pd.read_csv(filepath_or_buffer=path_bolli, sep='\t')
+    bolli = bolli[["CHR", "START", "WT", "MT", "Variant_class"]]
+    bolli_counts = bolli.groupby(['CHR','START'])['MT'].count()
+    bolli_var = bolli.drop(['WT','MT'], axis = 1) 
+    bolli_var = bolli_var.set_index(['CHR', 'START'])
+    cl = [] 
+    freq = [] 
+    positions = []
+    annot = []
+    for record in snv.itertuples(index=False, name=None):
+        flag = 0
+        try:
+            chrom = str(record[3])
+            pos = int(record[4])
+            start = int(record[4]) - 9
+            end = int(record[4]) + 9
+            if (chrom, pos) in  bolli_counts.index:
+                cl.append("genomic_exact")
+                freq.append(str(bolli_counts.loc[(chrom,pos)]))
+                positions.append(str(pos))
+                annot.append(str(bolli_var.loc[chrom, pos]['Variant_class'].values[0]))
+                flag = 1
+            if flag == 0: 
+                bolli_counts_sub=bolli_counts.loc[chrom]
+                if not bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].empty:
+                    fr = []
+                    posit = []
+                    ann = []
+                    for i in bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].index.values:
+                        cl.append("genomic_close")
+                        fr.append(str(bolli_counts.loc[(chrom,i)]))
+                        posit.append(str(i))
+                        ann.append(str(bolli_var.loc[(chrom,i)]['Variant_class'].values[0]))
+                    freq.append((":".join(fr)))
+                    positions.append((":".join(posit)))
+                    annot.append((":".join(ann)))
+                else:
+                    cl.append(None)
+                    freq.append(None)
+                    positions.append(None)
+                    annot.append(None)
+        except:
+            cl.append(None)
+            freq.append(None)
+            positions.append(None)
+            annot.append(None)
+    snv["Bolli_Class"] = cl
+    snv["Bolli_Frequency"] = freq
+    snv["Bolli_Positions"] = positions
+    snv["Bolli_Annotation"] = annot
+    return(snv)
+
 def annotate_mmrf(snv, path_mmrf):
     mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
     mmrf=mmrf[["Sample", "CHROM", "POS", "REF", "ALT", "GEN[0].AR", "GEN[1].AR"]]
@@ -22,16 +102,15 @@ def annotate_mmrf(snv, path_mmrf):
     Q75 = [] 
     positions = [] 
     for record in snv.itertuples(index=False, name=None):
-        #print(record)
         flag = 0
-        try:    #what does "try" mean?
+        try:    #what does try/except pairs do?
             # Define position and chrom variable positions outside of loop based on varnames.
             chrom = str(record[3])
             pos = int(record[4])
             start = int(record[4]) - 9
             end = int(record[4]) + 9
             # 
-            if (chrom, pos) in mmrfC.index: #what does .index mean?
+            if (chrom, pos) in mmrfC.index:
                 cl.append("genomic_exact")
                 freq.append(str(mmrfC.loc[(chrom,pos)]))
                 medVAF.append(str(mmrfM.loc[(chrom,pos)]))
@@ -140,6 +219,7 @@ def annotate_genefreq(snv, genes):
 
 def annotate_maf(snv):
     #adds column with maximal MAF of variant in any normal database
+    snv['MAX_MAF']=0 #sets variable to 0 if frequency is not reported
     snv['MAX_MAF']=snv.filter(regex='MAF').max(axis=1)
     return(snv)
 
@@ -200,7 +280,9 @@ def process(
         outdir,
         genes,
         mmrf,
-        lohr):
+        bolli,
+        lohr,
+        normals):
     """Main function to process myTYPE SNV output"""
     ##IMPORTING DATA
     snv = import_snv(infile, skiplines)
@@ -210,6 +292,8 @@ def process(
     snv = annotate_genefreq(snv, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
     snv = annotate_maf(snv)
     snv = annotate_mmrf(snv, mmrf)
+    snv = annotate_bolli(snv, bolli)
+    snv = annotate_normals(snv, normals)
     #snv = annotate_lohr(snv, lohr)
 
     ##FILTERS
