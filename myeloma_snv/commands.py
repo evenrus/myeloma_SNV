@@ -23,7 +23,6 @@ def annotate_normals(snv, path_normals):
             chrom=str(record[3])
             pos=int(record[4])
             tempC = normals_counts.loc[(chrom,pos),"count"]
-            print(tempC.ix[0])
             tempC = tempC.ix[0]
             normalC.append(str(tempC))
             normalVAF.append(str(normals_median.loc[(chrom,pos)]))
