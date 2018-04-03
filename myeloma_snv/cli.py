@@ -49,6 +49,12 @@ from myeloma_snv import commands
     type=click.Path(exists=True),
     help="Excel file with column 'GENES'. Used to filter out variants in other genes.")
 @click.option(
+    "--mmrf",
+    default='references/MMRF_CoMMpass_IA9_All_Canonical_Variants.txt',
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Path to MMRF reference file in .tsv format")
+@click.option(
     "--lohr",
     default='references/lohr_variants.xlsx',
     show_default=True,
@@ -56,7 +62,7 @@ from myeloma_snv import commands
     help="Excel file with raw data from lohr et al 2014 - changed from hg18 to hg19 format.")
 @click.version_option(__version__)
 
-def main(outdir, infile, skiplines, genes, lohr):
+def main(outdir, infile, skiplines, genes, mmrf, lohr):
     r"""
     rogram for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
     """
@@ -65,6 +71,7 @@ def main(outdir, infile, skiplines, genes, lohr):
         skiplines=skiplines,
         outdir=outdir,
         genes=genes,
+        mmrf=mmrf,
         lohr=lohr
         )
 

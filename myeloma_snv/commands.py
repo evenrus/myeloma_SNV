@@ -7,6 +7,80 @@ import numpy as np
 import re
 import os
 
+def annotate_mmrf(snv, path_mmrf):
+    mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
+    mmrf=mmrf[["Sample", "CHROM", "POS", "REF", "ALT", "GEN[0].AR", "GEN[1].AR"]]
+    mmrf=mmrf.drop_duplicates()
+    mmrfM=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].median()
+    mmrfC=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].count()
+    mmrfQ25=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].quantile(q=0.25)
+    mmrfQ75=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].quantile(q=0.75)
+    cl = [] 
+    freq = [] 
+    medVAF = [] 
+    Q25 = [] 
+    Q75 = [] 
+    positions = [] 
+    for record in snv.itertuples(index=False, name=None):
+        #print(record)
+        flag = 0
+        try:    #what does "try" mean?
+            # Define position and chrom variable positions outside of loop based on varnames.
+            chrom = str(record[3])
+            pos = int(record[4])
+            start = int(record[4]) - 9
+            end = int(record[4]) + 9
+            # 
+            if (chrom, pos) in mmrfC.index: #what does .index mean?
+                cl.append("genomic_exact")
+                freq.append(str(mmrfC.loc[(chrom,pos)]))
+                medVAF.append(str(mmrfM.loc[(chrom,pos)]))
+                Q25.append(str(mmrfQ25.loc[(chrom,pos)]))
+                Q75.append(str(mmrfQ75.loc[(chrom,pos)]))
+                positions.append(str(pos))
+                flag = 1
+            if flag == 0:
+                mmrfCsub=mmrfC.loc[chrom]
+                if not mmrfCsub[(mmrfCsub.index >= start) & (mmrfCsub.index <= end)].empty:
+                    fr = []
+                    mv = []
+                    Q2 = []
+                    Q7 = []
+                    posit = []
+                    for i in mmrfCsub[(mmrfCsub.index >= start) & (mmrfCsub.index <= end)].index.values:
+                        cl.append("genomic_close")
+                        fr.append(str(mmrfC.loc[(chrom,i)]))
+                        mv.append(str(mmrfM.loc[(chrom,i)]))
+                        Q2.append(str(mmrfQ25.loc[(chrom,i)]))
+                        Q7.append(str(mmrfQ75.loc[(chrom,i)]))
+                        posit.append(str(i))
+                    freq.append((":".join(fr)))
+                    medVAF.append((":".join(mv)))
+                    Q25.append((":".join(Q2)))
+                    Q75.append((":".join(Q7)))
+                    positions.append((":".join(posit)))
+                else:
+                    cl.append(None)
+                    freq.append(None)
+                    medVAF.append(None)
+                    Q25.append(None)
+                    Q75.append(None)
+                    positions.append(None)
+        except:
+            cl.append(None)
+            freq.append(None)
+            medVAF.append(None)
+            Q25.append(None)
+            Q75.append(None)
+            positions.append(None)
+    snv["MMRF_Class"] = cl
+    snv["MMRF_Frequency"] = freq
+    snv["MMRF_VAF"] = medVAF
+    snv["MMRF_Q25"] = Q25
+    snv["MMRF_Q75"] = Q75
+    snv["MMRF_Positions"] = positions
+    return(snv)
+
 def import_snv(path, skiplines):
     #determine filetype and import, returns pandas dataFrame
     if re.search('.csv$', path):
@@ -61,7 +135,7 @@ def annotate_genefreq(snv, genes):
     freqlist = pd.read_excel(io=genes)
     freqlist['MAX_MUTFREQ']=round(freqlist.filter(regex='freq').max(axis=1),1)
     freqlist=freqlist[['GENE', 'MAX_MUTFREQ']]
-    snv=pd.merge(snv, freqlist)
+    snv=pd.merge(snv, freqlist, how='left')
     return(snv)
 
 def annotate_maf(snv):
@@ -125,6 +199,7 @@ def process(
         skiplines,
         outdir,
         genes,
+        mmrf,
         lohr):
     """Main function to process myTYPE SNV output"""
     ##IMPORTING DATA
@@ -132,8 +207,9 @@ def process(
 
     ##ANNOTATIONS
     snv = annotate_COSMIC(snv) 
-    snv = annotate_genefreq(snv, genes)
+    snv = annotate_genefreq(snv, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
     snv = annotate_maf(snv)
+    snv = annotate_mmrf(snv, mmrf)
     #snv = annotate_lohr(snv, lohr)
 
     ##FILTERS
