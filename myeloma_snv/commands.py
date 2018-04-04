@@ -6,8 +6,9 @@ import pandas as pd
 import numpy as np
 import re
 import os
-import pybedtools as pyb 
+import pybedtools as pyb
 
+## IMPORT VARIANTS FILE
 def import_snv(path, skiplines):
     #determine filetype and import, returns pandas dataFrame
     if re.search('.csv$', path):
@@ -37,6 +38,41 @@ def import_snv(path, skiplines):
     else:
         raise Exception(f'Input file {path} has unsupported extension: try .csv or .tsv.gz')
 
+## ANNOTATION FUNCTIONS
+def annotate_COSMIC(snv):
+    #make column HEME_EXACT
+    heme_exact = []
+    cosmic = snv['COSMIC'].tolist()
+    for entry in cosmic:
+        if pd.isnull(entry):
+            heme_exact.append(None)
+        else:
+            first=entry.split('|')[0]
+            if re.search('^GENOMIC_EXACT', first):
+                if re.search('HAEMATOPOIETIC_AND_LYMPHOID_TISSUE', first):
+                    count=re.search('(?<=HAEMATOPOIETIC_AND_LYMPHOID_TISSUE=)\w+', first)[0]
+                    heme_exact.append(count)
+                else:
+                    heme_exact.append(None)
+            else:
+                heme_exact.append(None)
+    snv['HEME_EXACT']=heme_exact
+    return(snv)
+
+def annotate_genefreq(snv, genes):
+    #adds column with maximal mutation frequency in gene as previously published in large MM studies.
+    freqlist = pd.read_excel(io=genes)
+    freqlist['MAX_MUTFREQ']=round(freqlist.filter(regex='freq').max(axis=1),1)
+    freqlist=freqlist[['GENE', 'MAX_MUTFREQ']]
+    snv=pd.merge(snv, freqlist, how='left')
+    return(snv)
+
+def annotate_maf(snv):
+    #adds column with maximal MAF of variant in any normal database
+    snv['MAX_MAF']=0 #sets variable to 0 if frequency is not reported
+    snv['MAX_MAF']=snv.filter(regex='MAF').max(axis=1)
+    return(snv)
+
 def annotate_normals(snv, path_normals):
     normals = pd.read_csv(
         filepath_or_buffer=path_normals,
@@ -62,59 +98,6 @@ def annotate_normals(snv, path_normals):
             normalVAF.append("0")
     snv["Normals_Frequency"] = normalC
     snv["Normals_median_VAF"] = normalVAF
-    return(snv)
-    
-def annotate_bolli(snv, path_bolli):
-    bolli = pd.read_csv(filepath_or_buffer=path_bolli, sep='\t')
-    bolli = bolli[["CHR", "START", "WT", "MT", "Variant_class"]]
-    bolli_counts = bolli.groupby(['CHR','START'])['MT'].count()
-    bolli_var = bolli.drop(['WT','MT'], axis = 1) 
-    bolli_var = bolli_var.set_index(['CHR', 'START'])
-    cl = [] 
-    freq = [] 
-    positions = []
-    annot = []
-    for record in snv.itertuples(index=False, name=None):
-        flag = 0
-        try:
-            chrom = str(record[3])
-            pos = int(record[4])
-            start = int(record[4]) - 9
-            end = int(record[4]) + 9
-            if (chrom, pos) in  bolli_counts.index:
-                cl.append("genomic_exact")
-                freq.append(str(bolli_counts.loc[(chrom,pos)]))
-                positions.append(str(pos))
-                annot.append(str(bolli_var.loc[chrom, pos]['Variant_class'].values[0]))
-                flag = 1
-            if flag == 0: 
-                bolli_counts_sub=bolli_counts.loc[chrom]
-                if not bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].empty:
-                    fr = []
-                    posit = []
-                    ann = []
-                    for i in bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].index.values:
-                        fr.append(str(bolli_counts.loc[(chrom,i)]))
-                        posit.append(str(i))
-                        ann.append(str(bolli_var.loc[(chrom,i)]['Variant_class'].values[0]))
-                    cl.append("genomic_close")
-                    freq.append((":".join(fr)))
-                    positions.append((":".join(posit)))
-                    annot.append((":".join(ann)))
-                else:
-                    cl.append(None)
-                    freq.append(None)
-                    positions.append(None)
-                    annot.append(None)
-        except:
-            cl.append(None)
-            freq.append(None)
-            positions.append(None)
-            annot.append(None)
-    snv["Bolli_Class"] = cl
-    snv["Bolli_Frequency"] = freq
-    snv["Bolli_Positions"] = positions
-    snv["Bolli_Annotation"] = annot
     return(snv)
 
 def annotate_mmrf(snv, path_mmrf):
@@ -190,44 +173,103 @@ def annotate_mmrf(snv, path_mmrf):
     snv["MMRF_Positions"] = positions
     return(snv)
 
-def annotate_COSMIC(snv):
-    #make column HEME_EXACT
-    heme_exact = []
-    cosmic = snv['COSMIC'].tolist()
-    for entry in cosmic:
-        if pd.isnull(entry):
-            heme_exact.append(None)
-        else:
-            first=entry.split('|')[0]
-            if re.search('^GENOMIC_EXACT', first):
-                if re.search('HAEMATOPOIETIC_AND_LYMPHOID_TISSUE', first):
-                    count=re.search('(?<=HAEMATOPOIETIC_AND_LYMPHOID_TISSUE=)\w+', first)[0]
-                    heme_exact.append(count)
+def annotate_bolli(snv, path_bolli):
+    bolli = pd.read_csv(filepath_or_buffer=path_bolli, sep='\t')
+    bolli = bolli[["CHR", "START", "WT", "MT", "Variant_class"]]
+    bolli_counts = bolli.groupby(['CHR','START'])['MT'].count()
+    bolli_var = bolli.drop(['WT','MT'], axis = 1) 
+    bolli_var = bolli_var.set_index(['CHR', 'START'])
+    cl = [] 
+    freq = [] 
+    positions = []
+    annot = []
+    for record in snv.itertuples(index=False, name=None):
+        flag = 0
+        try:
+            chrom = str(record[3])
+            pos = int(record[4])
+            start = int(record[4]) - 9
+            end = int(record[4]) + 9
+            if (chrom, pos) in  bolli_counts.index:
+                cl.append("genomic_exact")
+                freq.append(str(bolli_counts.loc[(chrom,pos)]))
+                positions.append(str(pos))
+                annot.append(str(bolli_var.loc[chrom, pos]['Variant_class'].values[0]))
+                flag = 1
+            if flag == 0: 
+                bolli_counts_sub=bolli_counts.loc[chrom]
+                if not bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].empty:
+                    fr = []
+                    posit = []
+                    ann = []
+                    for i in bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].index.values:
+                        fr.append(str(bolli_counts.loc[(chrom,i)]))
+                        posit.append(str(i))
+                        ann.append(str(bolli_var.loc[(chrom,i)]['Variant_class'].values[0]))
+                    cl.append("genomic_close")
+                    freq.append((":".join(fr)))
+                    positions.append((":".join(posit)))
+                    annot.append((":".join(ann)))
                 else:
-                    heme_exact.append(None)
-            else:
-                heme_exact.append(None)
-    snv['HEME_EXACT']=heme_exact
+                    cl.append(None)
+                    freq.append(None)
+                    positions.append(None)
+                    annot.append(None)
+        except:
+            cl.append(None)
+            freq.append(None)
+            positions.append(None)
+            annot.append(None)
+    snv["Bolli_Class"] = cl
+    snv["Bolli_Frequency"] = freq
+    snv["Bolli_Positions"] = positions
+    snv["Bolli_Annotation"] = annot
     return(snv)
 
-def annotate_genefreq(snv, genes):
-    #adds column with maximal mutation frequency in gene as previously published in large MM studies.
-    freqlist = pd.read_excel(io=genes)
-    freqlist['MAX_MUTFREQ']=round(freqlist.filter(regex='freq').max(axis=1),1)
-    freqlist=freqlist[['GENE', 'MAX_MUTFREQ']]
-    snv=pd.merge(snv, freqlist, how='left')
+def annotate_lohr(snv, lohr_path):
+    lohr = pd.read_csv(filepath_or_buffer=lohr_path, sep='\t')
+    lohr=lohr[["Tumor_Sample_Barcode", "Chromosome", "Start_Position", "Reference_Allele", "Tumor_Seq_Allele2", "Variant_Classification"]]
+    lohrC=lohr.groupby(['Chromosome','Start_Position'])['Tumor_Seq_Allele2'].count()
+    cl = [] 
+    freq = [] 
+    positions = [] 
+    for record in snv.itertuples(index=False, name=None):
+        flag = 0
+        try:    
+            chrom = str(record[3])
+            pos = int(record[4])
+            start = int(record[4]) - 9
+            end = int(record[4]) + 9
+            if (chrom, pos) in lohrC.index:
+                cl.append("genomic_exact")
+                freq.append(str(lohrC.loc[(chrom,pos)]))
+                positions.append(str(pos))
+                flag = 1
+            if flag == 0:
+                lohrCsub=lohrC.loc[chrom]
+                if not lohrCsub[(lohrCsub.index >= start) & (lohrCsub.index <= end)].empty:
+                    fr = []
+                    posit = []
+                    for i in lohrCsub[(lohrCsub.index >= start) & (lohrCsub.index <= end)].index.values:
+                        fr.append(str(lohrC.loc[(chrom,i)]))
+                        posit.append(str(i))
+                    cl.append("genomic_close")
+                    freq.append((":".join(fr)))
+                    positions.append((":".join(posit)))
+                else:
+                    cl.append(None)
+                    freq.append(None)
+                    positions.append(None)
+        except:
+            cl.append(None)
+            freq.append(None)
+            positions.append(None)
+    snv["Lohr_Class"] = cl
+    snv["Lohr_Frequency"] = freq
+    snv["Lohr_Positions"] = positions
     return(snv)
 
-def annotate_maf(snv):
-    #adds column with maximal MAF of variant in any normal database
-    snv['MAX_MAF']=0 #sets variable to 0 if frequency is not reported
-    snv['MAX_MAF']=snv.filter(regex='MAF').max(axis=1)
-    return(snv)
-
-def annotate_lohr(snv, lohr):
-    #args snv = snv file; lohr = raw data from lohr 2014 in hg19 format.
-    return(snv) 
-
+## APPLY FLAGS FOR FILTERING
 def filter_panel(snv, genes_bed):
     #args: snv = snv file; genes = path to file with genes to include
     snv_bed = snv[["CHR", "START", "END", "ID_VARIANT"]]
@@ -278,6 +320,7 @@ def namecore(infile):
     else:
         return(re.sub('.tsv.gz$', '', name))
 
+## FILTER AND EXPORT
 def filter_export(snv, outdir, name):
     good=snv[snv.filter(regex='MFLAG').sum(axis=1) == 0]
     bad=snv[snv.filter(regex='MFLAG').sum(axis=1) > 0]
@@ -325,10 +368,12 @@ def process(
     snv = annotate_COSMIC(snv) 
     snv = annotate_genefreq(snv, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
     snv = annotate_maf(snv)
+    snv = annotate_normals(snv, normals)
     snv = annotate_mmrf(snv, mmrf)
     snv = annotate_bolli(snv, bolli)
-    snv = annotate_normals(snv, normals)
-    #snv = annotate_lohr(snv, lohr) #Waiting for wile from Teja.
+    snv = annotate_lohr(snv, lohr)
+
+
 
     ##FILTERS
     snv = filter_panel(snv, genes_bed) #Remove calls outside of myTYPE panel

@@ -74,10 +74,10 @@ from myeloma_snv import commands
     help="Path to Bolli reference file, tab separated text")
 @click.option(
     "--lohr",
-    default='references/lohr_variants.xlsx',
+    default='references/lohr_b37.maf',
     show_default=True,
     type=click.Path(exists=True),
-    help="Excel file with raw data from lohr et al 2014 - changed from hg18 to hg19 format.")
+    help="Path to Lohr reference file - tab separated hg19 format.")
 @click.option(
     "--normals",
     default='references/good_normals__cosmic_81_exac_03__11.tgd.unfiltered.tsv.gz',
