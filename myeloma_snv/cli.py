@@ -16,10 +16,10 @@ Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
 """
 
 # Program for post-processing of CNV data from myTYPE with myeloma-specific annotations and filters
-# v 3.4.18
+# v 1.0
 # Current version takes input file already subjected to some processing:
 ## - Annotated with COSMIC, 1000g and EXAC.
-## - Removed synonymous (AND IGH locus?)
+## - Removed synonymous 
 
 import click
 
@@ -108,19 +108,15 @@ def main(outdir, infile, skiplines, genes, genes_bed, igh, mmrf, bolli, lohr, no
 ## COSMIC, EXAC, 1000 genomes, VAF and other variant metadata
 
 #### ANNOTATIONS IN THIS SCRIPT ####
-##DONE## 16 internal normals sequenced by myTYPE
-##DONE## MMRF (889 WES, matched normal, not manually curated)
-##DONE## Bolli (418 targeted seq, manually curated)
-
+# 16 internal normals sequenced by myTYPE
+# MMRF (889 WES, matched normal, not manually curated)
+# Bolli (418 targeted seq, manually curated)
 #Lohr ~200 WES/WGS
 
 #### FILTERS ####
-##DONE## -calls in IGH locus
-##DONE## -calls in genes not in myTYPE panel
-##DONE## -calls with > 3 % MAF in Exac or 1000 genomes
-##DONE## -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
-##DONE## -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
-##DONE## -calls present in at least 4 internal normals
-
-##Redundant## -non-pass calls present in at least 1 normal AND not in COSMIC, MMRF, etc.
-##Redundant## -synonymous variants 
+# -calls in IGH locus
+# -calls in genes not in myTYPE panel
+# -calls with > 3 % MAF in Exac or 1000 genomes
+# -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
+# -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
+# -calls present in at least 4 internal normals

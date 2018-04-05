@@ -7,6 +7,9 @@ import numpy as np
 import re
 import os
 import pybedtools as pyb
+from datetime import datetime
+
+run_time = str(datetime.today())
 
 ## IMPORT VARIANTS FILE
 def import_snv(path, skiplines):
@@ -304,7 +307,7 @@ def filter_IGH(snv, IGH_path):
     return(snv)
 
 def filter_MAF(snv):
-    snv['MFLAG_MAF'] = np.where(snv['MAX_MAF'] <= 0.03, 0, 1)
+    snv['MFLAG_MAF'] = np.where(snv['MAX_MAF'] > 0.03, 1, 0)
     return(snv)
 
 def filter_MAF_COSMIC(snv):
@@ -313,14 +316,14 @@ def filter_MAF_COSMIC(snv):
     return(snv)
 
 def filter_nonpass(snv):
-    #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
-    keep = ['initiator_codon_change', 'splice_site_variant', 'stop_gained', 'frameshift_variant', 'complex_change_in_transcript']
-    snv['MFLAG_NONPASS'] = np.where((snv['FILTER'] != "PASS") & (~snv['EFFECT'].isin(keep)) & (snv['ANY_EXACT_POS'] == 0) & (snv['MMRF_Class'].isnull()) & (snv['Bolli_Class'].isnull()), 1, 0)
+    #Remove non-PASS missense mutation calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.).
+    drop = ['non_synonymous_codon']
+    snv['MFLAG_NONPASS'] = np.where((snv['FILTER'] != "PASS") & (snv['EFFECT'].isin(drop)) & (snv['ANY_EXACT_POS'] == 0) & (snv['MMRF_Class'].isnull()) & (snv['Bolli_Class'].isnull()), 1, 0)
     return(snv)
 
 def filter_normals(snv):
-    #Remove calls present in at least 4 internal normals
-    snv['MFLAG_NORM'] = np.where((snv['Normals_Frequency'] >= 4), 1, 0)
+    #Remove calls present in at least 1 internal normals
+    snv['MFLAG_NORM'] = np.where((snv['Normals_Frequency'] > 0), 1, 0)
     return(snv)
 
 def namecore(infile):
@@ -336,6 +339,8 @@ def filter_export(snv, outdir, name):
     bad=snv[snv.filter(regex='MFLAG').sum(axis=1) > 0]
     if not re.search('/$', outdir):
         outdir =''.join([outdir,'/'])
+    date=str(datetime.today()).split()[0].split("-")
+    name='_'.join([name, '_'.join(date)])
     goodname=''.join([outdir, name, '_goodcalls.csv'])
     badname=''.join([outdir, name, '_badcalls.csv'])
     textname=''.join([outdir, name, '_report.txt'])
@@ -346,14 +351,16 @@ def filter_export(snv, outdir, name):
         path_or_buf=badname,
         index=False)
     with open(textname, 'w') as f:
-        f.write(f'Imported SNV calls: {snv.shape[0]}\n')
+        #Call the "Version" file for version info?
+        f.write(f'SNV processing for myTYPE data\nv.1.0\nTime of run start: {run_time.split(".")[0]}\n')
+        f.write(f'####\nImported SNV calls: {snv.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
         f.write(f'MFLAG_PANEL: Gene not in panel: {snv["MFLAG_PANEL"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {snv["MFLAG_IGH"].sum()}\n')
         f.write(f'MFLAG_MAF: MAF > 3 % in exax/1000genomes: {snv["MFLAG_MAF"].sum()}\n')
         f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {snv["MFLAG_MAFCOS"].sum()}\n')
         f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC(exact/pos), MMRF or Bolli; EXCEPT stopgain, frameshift, etc: {snv["MFLAG_NONPASS"].sum()}\n')
-        f.write(f'MFLAG_NORM: Variant in >= 4 good normals: {snv["MFLAG_NORM"].sum()}\n')
+        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: {snv["MFLAG_NORM"].sum()}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
@@ -391,7 +398,7 @@ def process(
     snv = filter_MAF(snv) #Remove if MAF > 3 %.
     snv = filter_MAF_COSMIC(snv) #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
     snv = filter_nonpass(snv) #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
-    snv = filter_normals(snv) #Remove calls present in at least 4 internal normals
+    snv = filter_normals(snv) #Remove calls present in at least 1 internal normal
     
     #snv = filter_synonymous(snv) ## Already done with input - Not necessary?
 
