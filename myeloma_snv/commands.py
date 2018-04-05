@@ -40,7 +40,7 @@ def import_snv(path, skiplines):
 
 ## ANNOTATION FUNCTIONS
 def annotate_COSMIC(snv):
-    #make column HEME_EXACT
+    #make column HEME_EXACT and ANY_EXACT_POS
     heme_exact = []
     cosmic = snv['COSMIC'].tolist()
     for entry in cosmic:
@@ -57,6 +57,15 @@ def annotate_COSMIC(snv):
             else:
                 heme_exact.append(None)
     snv['HEME_EXACT']=heme_exact
+    any_exact_pos = []
+    for entry in cosmic:
+        if pd.isnull(entry):
+            any_exact_pos.append(0)
+        elif re.search('GENOMIC_EXACT', entry) or re.search('GENOMIC_POS', entry):
+            any_exact_pos.append(1)
+        else:
+            any_exact_pos.append(0)
+    snv['ANY_EXACT_POS']=any_exact_pos
     return(snv)
 
 def annotate_genefreq(snv, genes):
@@ -299,13 +308,14 @@ def filter_MAF(snv):
     return(snv)
 
 def filter_MAF_COSMIC(snv):
-    #Remove if >0.1 % MAF and not in COSMIC
-    snv['MFLAG_MAFCOS'] = np.where((snv['MAX_MAF'] > 0.001) & (snv['COSMIC'].isnull()), 1, 0)
+    #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
+    snv['MFLAG_MAFCOS'] = np.where((snv['MAX_MAF'] > 0.001) & (snv['ANY_EXACT_POS'] == 0), 1, 0)
     return(snv)
 
 def filter_nonpass(snv):
-    #Remove non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
-    snv['MFLAG_NONPASS'] = np.where((snv['FILTER'] != "PASS") & (snv['COSMIC'].isnull()) & (snv['MMRF_Class'].isnull()) & (snv['Bolli_Class'].isnull()), 1, 0)
+    #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
+    keep = ['initiator_codon_change', 'splice_site_variant', 'stop_gained', 'frameshift_variant', 'complex_change_in_transcript']
+    snv['MFLAG_NONPASS'] = np.where((snv['FILTER'] != "PASS") & (~snv['EFFECT'].isin(keep)) & (snv['ANY_EXACT_POS'] == 0) & (snv['MMRF_Class'].isnull()) & (snv['Bolli_Class'].isnull()), 1, 0)
     return(snv)
 
 def filter_normals(snv):
@@ -341,8 +351,8 @@ def filter_export(snv, outdir, name):
         f.write(f'MFLAG_PANEL: Gene not in panel: {snv["MFLAG_PANEL"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {snv["MFLAG_IGH"].sum()}\n')
         f.write(f'MFLAG_MAF: MAF > 3 % in exax/1000genomes: {snv["MFLAG_MAF"].sum()}\n')
-        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC: {snv["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC, MMRF or Bolli: {snv["MFLAG_NONPASS"].sum()}\n')
+        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {snv["MFLAG_MAFCOS"].sum()}\n')
+        f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC(exact/pos), MMRF or Bolli; EXCEPT stopgain, frameshift, etc: {snv["MFLAG_NONPASS"].sum()}\n')
         f.write(f'MFLAG_NORM: Variant in >= 4 good normals: {snv["MFLAG_NORM"].sum()}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
@@ -379,8 +389,8 @@ def process(
     snv = filter_panel(snv, genes_bed) #Remove calls outside of myTYPE panel
     snv = filter_IGH(snv, igh) #Remove calls in IGH locus
     snv = filter_MAF(snv) #Remove if MAF > 3 %.
-    snv = filter_MAF_COSMIC(snv) #Remove if >0.1 % MAF and not in COSMIC
-    snv = filter_nonpass(snv) #Remove non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
+    snv = filter_MAF_COSMIC(snv) #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
+    snv = filter_nonpass(snv) #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
     snv = filter_normals(snv) #Remove calls present in at least 4 internal normals
     
     #snv = filter_synonymous(snv) ## Already done with input - Not necessary?
@@ -389,3 +399,4 @@ def process(
     name = namecore(infile)
     filter_export(snv, outdir, name)
     print('SNV processing complete')
+
