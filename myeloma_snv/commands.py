@@ -1,4 +1,4 @@
-"""snv_process main command."""
+"""variants_process main command."""
 
 import click
 
@@ -12,40 +12,42 @@ from datetime import datetime
 run_time = str(datetime.today())
 
 ## IMPORT VARIANTS FILE
-def import_snv(path, skiplines):
+def import_variants(path, skiplines):
     #determine filetype and import, returns pandas dataFrame
     if re.search('.csv$', path):
-        snv = pd.read_csv(
+        variants = pd.read_csv(
             filepath_or_buffer=path,
-            skiprows=skiplines)
+            skiprows=skiplines,
+            low_memory=False)
         try:
-            snv
+            variants
         except NameError:
             raise Exception(f'Error when importing file {path}')
         else:
-            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Processing...')
-            return(snv)
+            print(f'Loaded csv-file containing {variants.shape[0]} variant calls. Processing...')
+            return(variants)
     elif re.search('.tsv.gz$', path):
-        snv = pd.read_csv(
+        variants = pd.read_csv(
             filepath_or_buffer=path,
             compression='gzip',
             sep='\t',
-            skiprows=skiplines)
+            skiprows=skiplines,
+            low_memory=False)
         try:
-            snv
+            variants
         except NameError:
             raise Exception(f'Error when importing file {path}')
         else:
-            print(f'Loaded csv-file containing {snv.shape[0]} SNV calls. Processing...')
-            return(snv)
+            print(f'Loaded tsv.gz-file containing {variants.shape[0]} variant calls. Processing...')
+            return(variants)
     else:
         raise Exception(f'Input file {path} has unsupported extension: try .csv or .tsv.gz')
 
 ## ANNOTATION FUNCTIONS
-def annotate_COSMIC(snv):
+def annotate_COSMIC(variants):
     #make column HEME_EXACT and ANY_EXACT_POS
     heme_exact = []
-    cosmic = snv['COSMIC'].tolist()
+    cosmic = variants['COSMIC'].tolist()
     for entry in cosmic:
         if pd.isnull(entry):
             heme_exact.append(None)
@@ -59,7 +61,7 @@ def annotate_COSMIC(snv):
                     heme_exact.append(None)
             else:
                 heme_exact.append(None)
-    snv['HEME_EXACT']=heme_exact
+    variants['HEME_EXACT']=heme_exact
     any_exact_pos = []
     for entry in cosmic:
         if pd.isnull(entry):
@@ -68,24 +70,24 @@ def annotate_COSMIC(snv):
             any_exact_pos.append(1)
         else:
             any_exact_pos.append(0)
-    snv['ANY_EXACT_POS']=any_exact_pos
-    return(snv)
+    variants['ANY_EXACT_POS']=any_exact_pos
+    return(variants)
 
-def annotate_genefreq(snv, genes):
+def annotate_genefreq(variants, genes):
     #adds column with maximal mutation frequency in gene as previously published in large MM studies.
     freqlist = pd.read_excel(io=genes)
     freqlist['MAX_MUTFREQ']=round(freqlist.filter(regex='freq').max(axis=1),1)
     freqlist=freqlist[['GENE', 'MAX_MUTFREQ']]
-    snv=pd.merge(snv, freqlist, how='left')
-    return(snv)
+    variants=pd.merge(variants, freqlist, how='left')
+    return(variants)
 
-def annotate_maf(snv):
+def annotate_maf(variants):
     #adds column with maximal MAF of variant in any normal database
-    snv['MAX_MAF']=0 #sets variable to 0 if frequency is not reported
-    snv['MAX_MAF']=snv.filter(regex='MAF').max(axis=1)
-    return(snv)
+    variants['MAX_MAF']=0 #sets variable to 0 if frequency is not reported
+    variants['MAX_MAF']=variants.filter(regex='MAF').max(axis=1)
+    return(variants)
 
-def annotate_normals(snv, path_normals):
+def annotate_normals(variants, path_normals):
     normals = pd.read_csv(
         filepath_or_buffer=path_normals,
         compression='gzip',
@@ -97,7 +99,7 @@ def annotate_normals(snv, path_normals):
     normals_median=normals.groupby(['CHR','START'])['TARGET_VAF'].median()
     normalC = []
     normalVAF = [] 
-    for record in snv.itertuples(index=False, name=None):
+    for record in variants.itertuples(index=False, name=None):
         try:
             chrom=str(record[3])
             pos=int(record[4])
@@ -108,11 +110,11 @@ def annotate_normals(snv, path_normals):
         except:
             normalC.append(0)
             normalVAF.append("0")
-    snv["Normals_Frequency"] = normalC
-    snv["Normals_median_VAF"] = normalVAF
-    return(snv)
+    variants["Normals_Frequency"] = normalC
+    variants["Normals_median_VAF"] = normalVAF
+    return(variants)
 
-def annotate_mmrf(snv, path_mmrf):
+def annotate_mmrf(variants, path_mmrf):
     mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
     mmrf=mmrf[["Sample", "CHROM", "POS", "REF", "ALT", "GEN[0].AR", "GEN[1].AR"]]
     mmrf=mmrf.drop_duplicates()
@@ -126,7 +128,7 @@ def annotate_mmrf(snv, path_mmrf):
     Q25 = [] 
     Q75 = [] 
     positions = [] 
-    for record in snv.itertuples(index=False, name=None):
+    for record in variants.itertuples(index=False, name=None):
         flag = 0
         try:    #what does try/except pairs do?
             # Define position and chrom variable positions outside of loop based on varnames.
@@ -177,15 +179,15 @@ def annotate_mmrf(snv, path_mmrf):
             Q25.append(None)
             Q75.append(None)
             positions.append(None)
-    snv["MMRF_Class"] = cl
-    snv["MMRF_Frequency"] = freq
-    snv["MMRF_VAF"] = medVAF
-    snv["MMRF_Q25"] = Q25
-    snv["MMRF_Q75"] = Q75
-    snv["MMRF_Positions"] = positions
-    return(snv)
+    variants["MMRF_Class"] = cl
+    variants["MMRF_Frequency"] = freq
+    variants["MMRF_VAF"] = medVAF
+    variants["MMRF_Q25"] = Q25
+    variants["MMRF_Q75"] = Q75
+    variants["MMRF_Positions"] = positions
+    return(variants)
 
-def annotate_bolli(snv, path_bolli):
+def annotate_bolli(variants, path_bolli):
     bolli = pd.read_csv(filepath_or_buffer=path_bolli, sep='\t')
     bolli = bolli[["CHR", "START", "WT", "MT", "Variant_class"]]
     bolli_counts = bolli.groupby(['CHR','START'])['MT'].count()
@@ -195,7 +197,7 @@ def annotate_bolli(snv, path_bolli):
     freq = [] 
     positions = []
     annot = []
-    for record in snv.itertuples(index=False, name=None):
+    for record in variants.itertuples(index=False, name=None):
         flag = 0
         try:
             chrom = str(record[3])
@@ -232,20 +234,20 @@ def annotate_bolli(snv, path_bolli):
             freq.append(None)
             positions.append(None)
             annot.append(None)
-    snv["Bolli_Class"] = cl
-    snv["Bolli_Frequency"] = freq
-    snv["Bolli_Positions"] = positions
-    snv["Bolli_Annotation"] = annot
-    return(snv)
+    variants["Bolli_Class"] = cl
+    variants["Bolli_Frequency"] = freq
+    variants["Bolli_Positions"] = positions
+    variants["Bolli_Annotation"] = annot
+    return(variants)
 
-def annotate_lohr(snv, lohr_path):
+def annotate_lohr(variants, lohr_path):
     lohr = pd.read_csv(filepath_or_buffer=lohr_path, sep='\t')
     lohr=lohr[["Tumor_Sample_Barcode", "Chromosome", "Start_Position", "Reference_Allele", "Tumor_Seq_Allele2", "Variant_Classification"]]
     lohrC=lohr.groupby(['Chromosome','Start_Position'])['Tumor_Seq_Allele2'].count()
     cl = [] 
     freq = [] 
     positions = [] 
-    for record in snv.itertuples(index=False, name=None):
+    for record in variants.itertuples(index=False, name=None):
         flag = 0
         try:    
             chrom = str(record[3])
@@ -276,56 +278,73 @@ def annotate_lohr(snv, lohr_path):
             cl.append(None)
             freq.append(None)
             positions.append(None)
-    snv["Lohr_Class"] = cl
-    snv["Lohr_Frequency"] = freq
-    snv["Lohr_Positions"] = positions
-    return(snv)
+    variants["Lohr_Class"] = cl
+    variants["Lohr_Frequency"] = freq
+    variants["Lohr_Positions"] = positions
+    return(variants)
 
 ## APPLY FLAGS FOR FILTERING
-def filter_panel(snv, genes_bed):
-    #args: snv = snv file; genes = path to file with genes to include
-    snv_bed = snv[["CHR", "START", "END", "ID_VARIANT"]]
-    snv_bed = pyb.BedTool.from_dataframe(snv_bed)
+def filter_panel(variants, genes_bed):
+    #args: variants = variants file; genes = path to file with genes to include
+    variants_bed = variants[["CHR", "START", "END", "ID_VARIANT"]]
+    variants_bed = pyb.BedTool.from_dataframe(variants_bed)
     genes = pyb.BedTool(genes_bed)
-    snv_inter = snv_bed.intersect(genes, u=True) ## Will not run due incomplete case in input file.
+    variants_inter = variants_bed.intersect(genes, u=True) ## Will not run due incomplete case in input file.
     flaglist = []
-    if not snv_inter.head(n=1, as_string = True) == '':
-        flaglist = pyb.BedTool.to_dataframe(snv_inter)['name']
-    snv['MFLAG_PANEL'] = np.where(snv.ID_VARIANT.isin(flaglist), 0, 1)
-    return(snv)
+    if not variants_inter.head(n=1, as_string = True) == '':
+        flaglist = pyb.BedTool.to_dataframe(variants_inter)['name']
+    variants['MFLAG_PANEL'] = np.where(variants.ID_VARIANT.isin(flaglist), 0, 1)
+    return(variants)
 
-def filter_IGH(snv, IGH_path):
+def filter_IGH(variants, IGH_path):
     #Remove calls in IGH locus
-    snv_bed = snv[["CHR", "START", "END", "ID_VARIANT"]]
-    snv_bed = pyb.BedTool.from_dataframe(snv_bed)
+    variants_bed = variants[["CHR", "START", "END", "ID_VARIANT"]]
+    variants_bed = pyb.BedTool.from_dataframe(variants_bed)
     igh = pyb.BedTool(IGH_path)
-    snv_inter = snv_bed.intersect(igh, u=True)
+    variants_inter = variants_bed.intersect(igh, u=True)
     flaglist = []
-    if not snv_inter.head(n=1, as_string = True) == '':
-        flaglist = pyb.BedTool.to_dataframe(snv_inter)['name']
-    snv['MFLAG_IGH'] = np.where(snv.ID_VARIANT.isin(flaglist), 1, 0)
-    return(snv)
+    if not variants_inter.head(n=1, as_string = True) == '':
+        flaglist = pyb.BedTool.to_dataframe(variants_inter)['name']
+    variants['MFLAG_IGH'] = np.where(variants.ID_VARIANT.isin(flaglist), 1, 0)
+    return(variants)
 
-def filter_MAF(snv):
-    snv['MFLAG_MAF'] = np.where(snv['MAX_MAF'] > 0.03, 1, 0)
-    return(snv)
+def filter_MAF(variants):
+    variants['MFLAG_MAF'] = np.where(variants['MAX_MAF'] > 0.03, 1, 0)
+    return(variants)
 
-def filter_MAF_COSMIC(snv):
-    #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
-    snv['MFLAG_MAFCOS'] = np.where((snv['MAX_MAF'] > 0.001) & (snv['ANY_EXACT_POS'] == 0), 1, 0)
-    return(snv)
+def filter_MAF_COSMIC(variants, mode):
+    #Remove if >0.1 % MAF and not in COSMIC
+    if mode == 'snv':
+        #Counts as COSMIC only exact and pos
+        variants['MFLAG_MAFCOS'] = np.where((variants['MAX_MAF'] > 0.001) & (variants['ANY_EXACT_POS'] == 0), 1, 0)
+    if mode == 'indel':
+        #Counts all COSMIC
+        variants['MFLAG_MAFCOS'] = np.where((variants['MAX_MAF'] > 0.001) & (variants['COSMIC'].isnull()), 1, 0)
+    
+    return(variants)
 
-def filter_nonpass(snv):
-    #Remove non-PASS missense mutation calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.).
-    drop = ['non_synonymous_codon']
-    snv['MFLAG_NONPASS'] = np.where((snv['FILTER'] != "PASS") & (snv['EFFECT'].isin(drop)) & (snv['ANY_EXACT_POS'] == 0) & (snv['MMRF_Class'].isnull()) & (snv['Bolli_Class'].isnull()), 1, 0)
-    return(snv)
+def filter_nonpass(variants, mode):
+    #Remove non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.).
+    if mode == 'snv':
+        #If SNVs, remove only non-synonymous mutations. Counts as COSMIC only exact and pos. 
+        drop = ['non_synonymous_codon']
+        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['EFFECT'].isin(drop)) & (variants['ANY_EXACT_POS'] == 0) & (variants['MMRF_Class'].isnull()) & (variants['Bolli_Class'].isnull()), 1, 0)
+        return(variants)
+    elif mode == 'indel': 
+        #If indels: do not take into account mutation effect, also allow all cosmic mentions as "in cosmic"
+        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['COSMIC'].isnull()) & (variants['MMRF_Class'].isnull()) & (variants['Bolli_Class'].isnull()), 1, 0)
+        return(variants)
 
-def filter_normals(snv):
+def filter_normals(variants):
     #Remove calls present in at least 1 internal normals
-    snv['MFLAG_NORM'] = np.where((snv['Normals_Frequency'] > 0), 1, 0)
-    return(snv)
+    variants['MFLAG_NORM'] = np.where((variants['Normals_Frequency'] > 0), 1, 0)
+    return(variants)
 
+def filter_VAF(variants):
+    variants['MFLAG_VAF'] = np.where(variants['TARGET_VAF'] < 0.01, 1, 0)
+    return(variants)
+
+## FILTER AND EXPORT
 def namecore(infile):
     name = infile.split('/')[-1]
     if re.search('.csv$', name):
@@ -333,10 +352,9 @@ def namecore(infile):
     else:
         return(re.sub('.tsv.gz$', '', name))
 
-## FILTER AND EXPORT
-def filter_export(snv, outdir, name):
-    good=snv[snv.filter(regex='MFLAG').sum(axis=1) == 0]
-    bad=snv[snv.filter(regex='MFLAG').sum(axis=1) > 0]
+def filter_export(variants, outdir, name, mode):
+    good=variants[variants.filter(regex='MFLAG').sum(axis=1) == 0]
+    bad=variants[variants.filter(regex='MFLAG').sum(axis=1) > 0]
     if not re.search('/$', outdir):
         outdir =''.join([outdir,'/'])
     date=str(datetime.today()).split()[0].split("-")
@@ -352,21 +370,24 @@ def filter_export(snv, outdir, name):
         index=False)
     with open(textname, 'w') as f:
         #Call the "Version" file for version info?
-        f.write(f'SNV processing for myTYPE data\nv.1.0\nTime of run start: {run_time.split(".")[0]}\n')
-        f.write(f'####\nImported SNV calls: {snv.shape[0]}\n')
+        f.write(f'Somatic variant processing for myTYPE\nv.1.0\nTime of run start: {run_time.split(".")[0]}\n')
+        f.write(f'####\nMode: {mode}\n')
+        f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
-        f.write(f'MFLAG_PANEL: Gene not in panel: {snv["MFLAG_PANEL"].sum()}\n')
-        f.write(f'MFLAG_IGH: In IGH locus: {snv["MFLAG_IGH"].sum()}\n')
-        f.write(f'MFLAG_MAF: MAF > 3 % in exax/1000genomes: {snv["MFLAG_MAF"].sum()}\n')
-        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {snv["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC(exact/pos), MMRF or Bolli; EXCEPT stopgain, frameshift, etc: {snv["MFLAG_NONPASS"].sum()}\n')
-        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: {snv["MFLAG_NORM"].sum()}\n')
+        f.write(f'MFLAG_PANEL: Gene not in panel: {variants["MFLAG_PANEL"].sum()}\n')
+        f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
+        f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: {variants["MFLAG_MAF"].sum()}\n')
+        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
+        f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC(exact/pos), MMRF or Bolli; EXCEPT stopgain, frameshift, etc: {variants["MFLAG_NONPASS"].sum()}\n')
+        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: {variants["MFLAG_NORM"].sum()}\n')
+        f.write(f'MFLAG_VAF: Remove variants with target VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
 
 # Main Function
 def process(
+        mode,
         infile,
         skiplines,
         outdir,
@@ -377,33 +398,30 @@ def process(
         bolli,
         lohr,
         normals):
-    """Main function to process myTYPE SNV output"""
+    """Main function to process myTYPE SNV and indel output"""
     ##IMPORTING DATA
-    snv = import_snv(infile, skiplines)
+    variants = import_variants(infile, skiplines)
 
     ##ANNOTATIONS
-    snv = annotate_COSMIC(snv) 
-    snv = annotate_genefreq(snv, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
-    snv = annotate_maf(snv)
-    snv = annotate_normals(snv, normals)
-    snv = annotate_mmrf(snv, mmrf)
-    snv = annotate_bolli(snv, bolli)
-    snv = annotate_lohr(snv, lohr)
-
-
+    variants = annotate_COSMIC(variants) 
+    variants = annotate_genefreq(variants, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
+    variants = annotate_maf(variants)
+    variants = annotate_normals(variants, normals)
+    variants = annotate_mmrf(variants, mmrf)
+    variants = annotate_bolli(variants, bolli)
+    variants = annotate_lohr(variants, lohr)
 
     ##FILTERS
-    snv = filter_panel(snv, genes_bed) #Remove calls outside of myTYPE panel
-    snv = filter_IGH(snv, igh) #Remove calls in IGH locus
-    snv = filter_MAF(snv) #Remove if MAF > 3 %.
-    snv = filter_MAF_COSMIC(snv) #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
-    snv = filter_nonpass(snv) #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
-    snv = filter_normals(snv) #Remove calls present in at least 1 internal normal
-    
-    #snv = filter_synonymous(snv) ## Already done with input - Not necessary?
+    variants = filter_panel(variants, genes_bed) #Remove calls outside of myTYPE panel
+    variants = filter_IGH(variants, igh) #Remove calls in IGH locus
+    variants = filter_MAF(variants) #Remove if MAF > 3 %.
+    variants = filter_MAF_COSMIC(variants, mode) #Remove if >0.1 % MAF and not in COSMIC (exact or pos)
+    variants = filter_nonpass(variants, mode) #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
+    variants = filter_normals(variants) #Remove calls present in at least 1 internal normal
+    variants = filter_VAF(variants) #Remove calls with VAF < 1 %
 
     ##OUTPUT
     name = namecore(infile)
-    filter_export(snv, outdir, name)
-    print('SNV processing complete')
+    filter_export(variants, outdir, name, mode)
+    print('Variant processing complete')
 

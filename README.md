@@ -6,9 +6,56 @@
 [![docker badge][docker_badge]][docker_base]
 [![docker badge][automated_badge]][docker_base]
 
-Script for processing SNV data from myeloma sequencing panel myTYPE with myeloma-specific annotations and filters.
+Program for processing SNV or indel calls from myTYPE with myeloma-specific annotations and filters.
 
-Not yet fully functional; development on-going.
+Development on-going.
+
+## Options
+
+myeloma_SNV:
+
+  --mode [snv|indel]   Set input variant type: snv or indel  [required]
+  --outdir PATH        Path to output directory.  [required]
+  --infile PATH        Path to input file with merged SNV calls in tsv.gz or
+                       csv format  [required]
+  --skiplines INTEGER  Number of lines to skip at the top of input file when
+                       importing.  [default: 0]
+  --genes PATH         Excel file with column 'GENES'. Used to filter out
+                       variants in other genes.  [required]
+  --genes_bed PATH     Bed file containing panel regions, to filter out
+                       outside calls.  [required]
+  --igh PATH           BED file with IGH locus to filter out overlapping
+                       calls.  [required]
+  --mmrf PATH          Path to MMRF reference file, tab separated text
+                       [required]
+  --bolli PATH         Path to Bolli reference file, tab separated text
+                       [required]
+  --lohr PATH          Path to Lohr reference file - tab separated hg19
+                       format.  [required]
+  --normals PATH       Path to good normal calls in tsv.gz format  [required]
+  --version            Show the version and exit.
+  --help               Show this message and exit.
+
+## Description
+Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
+
+Mandatory input columns:
+COSMIC, EXAC, 1000 genomes, VAF and other variant metadata
+
+Annotation columns:
+16 internal normals sequenced by myTYPE
+MMRF (889 WES, matched normal, not manually curated)
+Bolli (418 targeted seq, manually curated)
+Lohr ~200 WES/WGS
+
+Filtering criteria:
+ -calls in IGH locus
+ -calls in genes not in myTYPE panel
+ -calls with > 3 % MAF in Exac or 1000 genomes
+ -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
+ -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
+ -calls present in at least 1 internal normals
+ -calls with VAF < 1 %
 
 ## Credits
 
