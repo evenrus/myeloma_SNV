@@ -10,6 +10,77 @@ Program for processing SNV or indel calls from myTYPE with myeloma-specific anno
 
 Development on-going.
 
+## Description
+
+Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
+
+### Mandatory columns in input file
+
+ID_VARIANT = Unique identifier of each variant
+
+CHR = chromosome (int)
+
+START = variant start position (int)
+
+STOP = variant stop position (int)
+
+GENE = Gene name (str)
+
+TARGET_VAF = Variant allele frequency of variant (num)
+
+EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon'
+
+BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise
+
+FILTER = 'PASS' if variant has passed all previously applied variant caller filters.
+
+COSMIC = Cosmic annotation
+
+*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.
+
+### Annotations:
+
+Data from the following datasets are incorporated as annotations for each variant:
+
+-16 internal normals sequenced by myTYPE
+
+-MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)
+
+-Bolli Leukemia 2017 (418 targeted sequencing, manually curated)
+
+-Lohr Cell 2014 203 WES/WGS
+
+-myTYPE: Database of previously manually annotated variants 
+
+### Filtering by myeloma (M) FLAGs:
+
+-MFLAG_PANEL: Gene not in panel
+
+-MFLAG_IGH: In IGH locus
+
+-MFLAG_MAF: MAF > 3 % in exac/1000genomes
+
+-MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
+
+                For SNVs: Only EXACT/POS in COSMIC counts as match.
+
+-MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
+
+                For SNVs: Only EXACT/POS in COSMIC counts as match.
+
+                          Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
+
+-MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
+
+-MFLAG_VAF: Remove variants with target VAF < 1 %
+
+-MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
+
+
+### Output files
+
+Variants with no MFLAGs are output into a file for 'good calls'. Other variants are output as 'bad calls'. A run summary report including flag statistics is created into the same folder. 
+
 ## Options
 
 myeloma_SNV:
@@ -49,78 +120,6 @@ myeloma_SNV:
   --version            Show the version and exit.
 
   --help               Show this message and exit.
-
-
-## Description
-
-Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
-
-###Mandatory columns in input file
-
-ID_VARIANT = Unique identifier of each variant
-
-CHR = chromosome (int)
-
-START = variant start position (int)
-
-STOP = variant stop position (int)
-
-GENE = Gene name (str)
-
-TARGET_VAF = Variant allele frequency of variant (num)
-
-EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon'
-
-BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise
-
-FILTER = 'PASS' if variant has passed all previously applied variant caller filters.
-
-COSMIC = Cosmic annotation
-
-*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.
-
-###Annotations:
-
-Data from the following datasets are incorporated as annotations for each variant:
-
--16 internal normals sequenced by myTYPE
-
--MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)
-
--Bolli Leukemia 2017 (418 targeted sequencing, manually curated)
-
--Lohr Cell 2014 203 WES/WGS
-
--myTYPE: Database of previously manually annotated variants 
-
-###Filtering by myeloma (M) FLAGs:
-
--MFLAG_PANEL: Gene not in panel
-
--MFLAG_IGH: In IGH locus
-
--MFLAG_MAF: MAF > 3 % in exac/1000genomes
-
--MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
-
-                For SNVs: Only EXACT/POS in COSMIC counts as match.
-
--MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
-
-                For SNVs: Only EXACT/POS in COSMIC counts as match.
-
-                          Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
-
--MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
-
--MFLAG_VAF: Remove variants with target VAF < 1 %
-
--MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
-
-
-###Output files
-
-Variants with no MFLAGs are output into a file for 'good calls'. Other variants are output as 'bad calls'. A run summary report including flag statistics is created into the same folder. 
 
 ## Credits
 
