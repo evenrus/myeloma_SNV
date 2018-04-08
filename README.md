@@ -33,29 +33,47 @@ myeloma_SNV:
   --lohr PATH          Path to Lohr reference file - tab separated hg19
                        format.  [required]
   --normals PATH       Path to good normal calls in tsv.gz format  [required]
+  --mytype PATH        Path to manually annotated myTYPE data in csv format
   --version            Show the version and exit.
   --help               Show this message and exit.
 
 ## Description
 Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
 
-Mandatory input columns:
-COSMIC, EXAC, 1000 genomes, VAF and other variant metadata
+###Mandatory input columns:
+ID_VARIANT = Unique identifier of each variant
+CHR = chromosome (int)
+START = variant start position (int)
+STOP = variant stop position (int)
+GENE = Gene name (str)
+TARGET_VAF = Variant allele frequency of variant (num)
+EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon'
+BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise
+FILTER = 'PASS' if variant has passed all previously applied variant caller filters.
+COSMIC = Cosmic annotation
+*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.
 
-Annotation columns:
+###Annotation columns:
 16 internal normals sequenced by myTYPE
 MMRF (889 WES, matched normal, not manually curated)
 Bolli (418 targeted seq, manually curated)
 Lohr ~200 WES/WGS
+myTYPE: Previously manually annotated myTYPE variants.
 
-Filtering criteria:
- -calls in IGH locus
- -calls in genes not in myTYPE panel
- -calls with > 3 % MAF in Exac or 1000 genomes
- -calls with >0.1 % MAF in Exac or 1000 genomes if not present in COSMIC
- -non-PASS calls not present in COSMIC or previous cohorts (MMRF, Bolli, etc.)
- -calls present in at least 1 internal normals
- -calls with VAF < 1 %
+###Filtering by myeloma (M) FLAGs:
+-MFLAG_PANEL: Gene not in panel
+-MFLAG_IGH: In IGH locus
+-MFLAG_MAF: MAF > 3 % in exac/1000genomes
+-MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos)
+-MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
+                For SNVs: Only EXACT/POS in COSMIC counts as match.
+                          Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
+-MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
+-MFLAG_VAF: Remove variants with target VAF < 1 %
+-MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
+
+###Output files
+Variants with no MFLAGs are output into a file for 'good calls'. Other variants are output as 'bad calls'. A run summary report including flag statistics is created into the same folder. 
 
 ## Credits
 

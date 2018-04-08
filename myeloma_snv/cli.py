@@ -79,9 +79,14 @@ from myeloma_snv import commands
     required=True,
     type=click.Path(exists=True),
     help="Path to good normal calls in tsv.gz format")
+@click.option(
+    "--mytype",
+    required=False,
+    type=click.Path(exists=True),
+    help="Path to manually annotated myTYPE data in csv format")
 @click.version_option(__version__)
 
-def main(mode, outdir, infile, skiplines, genes, genes_bed, igh, mmrf, bolli, lohr, normals):
+def main(mode, outdir, infile, skiplines, genes, genes_bed, igh, mmrf, bolli, lohr, normals, mytype):
     r"""
     Program for processing SNV or indel calls from myTYPE with myeloma-specific annotations and filters
     """
@@ -96,6 +101,6 @@ def main(mode, outdir, infile, skiplines, genes, genes_bed, igh, mmrf, bolli, lo
         mmrf=mmrf,
         bolli=bolli,
         lohr=lohr,
-        normals=normals
+        normals=normals,
+        mytype=mytype
         )
-

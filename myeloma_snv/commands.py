@@ -98,11 +98,13 @@ def annotate_normals(variants, path_normals):
     normals_counts=normals_counts[["CHR", "START","count"]].set_index(['CHR','START'])
     normals_median=normals.groupby(['CHR','START'])['TARGET_VAF'].median()
     normalC = []
-    normalVAF = [] 
+    normalVAF = []
+    chrcol = variants.columns.get_loc("CHR")
+    poscol = variants.columns.get_loc("START") 
     for record in variants.itertuples(index=False, name=None):
         try:
-            chrom=str(record[3])
-            pos=int(record[4])
+            chrom = str(record[chrcol])
+            pos = int(record[poscol])
             tempC = normals_counts.loc[(chrom,pos),"count"]
             tempC = tempC.ix[0]
             normalC.append(int(tempC))
@@ -117,7 +119,7 @@ def annotate_normals(variants, path_normals):
 def annotate_mmrf(variants, path_mmrf):
     mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
     mmrf=mmrf[["Sample", "CHROM", "POS", "REF", "ALT", "GEN[0].AR", "GEN[1].AR"]]
-    mmrf=mmrf.drop_duplicates()
+    mmrf=mmrf.drop_duplicates() ## What are these duplicates?
     mmrfM=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].median()
     mmrfC=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].count()
     mmrfQ25=mmrf.groupby(['CHROM','POS'])['GEN[1].AR'].quantile(q=0.25)
@@ -128,15 +130,15 @@ def annotate_mmrf(variants, path_mmrf):
     Q25 = [] 
     Q75 = [] 
     positions = [] 
+    chrcol = variants.columns.get_loc("CHR")
+    poscol = variants.columns.get_loc("START")
     for record in variants.itertuples(index=False, name=None):
         flag = 0
-        try:    #what does try/except pairs do?
-            # Define position and chrom variable positions outside of loop based on varnames.
-            chrom = str(record[3])
-            pos = int(record[4])
-            start = int(record[4]) - 9
-            end = int(record[4]) + 9
-            # 
+        try:   
+            chrom = str(record[chrcol])
+            pos = int(record[poscol])
+            start = int(record[poscol]) - 9
+            end = int(record[poscol]) + 9
             if (chrom, pos) in mmrfC.index:
                 cl.append("genomic_exact")
                 freq.append(str(mmrfC.loc[(chrom,pos)]))
@@ -197,13 +199,15 @@ def annotate_bolli(variants, path_bolli):
     freq = [] 
     positions = []
     annot = []
+    chrcol = variants.columns.get_loc("CHR")
+    poscol = variants.columns.get_loc("START")
     for record in variants.itertuples(index=False, name=None):
         flag = 0
         try:
-            chrom = str(record[3])
-            pos = int(record[4])
-            start = int(record[4]) - 9
-            end = int(record[4]) + 9
+            chrom = str(record[chrcol])
+            pos = int(record[poscol])
+            start = int(record[poscol]) - 9
+            end = int(record[poscol]) + 9
             if (chrom, pos) in  bolli_counts.index:
                 cl.append("genomic_exact")
                 freq.append(str(bolli_counts.loc[(chrom,pos)]))
@@ -247,13 +251,15 @@ def annotate_lohr(variants, lohr_path):
     cl = [] 
     freq = [] 
     positions = [] 
+    chrcol = variants.columns.get_loc("CHR")
+    poscol = variants.columns.get_loc("START")
     for record in variants.itertuples(index=False, name=None):
         flag = 0
         try:    
-            chrom = str(record[3])
-            pos = int(record[4])
-            start = int(record[4]) - 9
-            end = int(record[4]) + 9
+            chrom = str(record[chrcol])
+            pos = int(record[poscol])
+            start = int(record[poscol]) - 9
+            end = int(record[poscol]) + 9
             if (chrom, pos) in lohrC.index:
                 cl.append("genomic_exact")
                 freq.append(str(lohrC.loc[(chrom,pos)]))
@@ -281,6 +287,104 @@ def annotate_lohr(variants, lohr_path):
     variants["Lohr_Class"] = cl
     variants["Lohr_Frequency"] = freq
     variants["Lohr_Positions"] = positions
+    return(variants)
+
+def annotate_mytype(variants, path_mytype):
+    mytype = pd.read_csv(filepath_or_buffer=path_mytype, sep=',')
+    mytype = mytype[["CHR", "START", "REF", "ALT", "CONSENSUS_ANNOTATION", "TARGET_VAF"]]
+    mytype_counts = mytype.groupby(['CHR','START'])['ALT'].count()
+    mytype_var = mytype.drop(['REF','ALT', "TARGET_VAF"], axis = 1) 
+    mytype_var = mytype_var.set_index(['CHR', 'START'])
+    mytype_med=mytype.groupby(['CHR','START'])['TARGET_VAF'].median()
+    mytype_Q25=mytype.groupby(['CHR','START'])['TARGET_VAF'].quantile(q=0.25)
+    mytype_Q75=mytype.groupby(['CHR','START'])['TARGET_VAF'].quantile(q=0.75)
+    cl = [] 
+    freq = [] 
+    medVAF = [] 
+    Q25 = [] 
+    Q75 = [] 
+    positions = []
+    annot = []
+    chrcol = variants.columns.get_loc("CHR")
+    poscol = variants.columns.get_loc("START")
+    for record in variants.itertuples(index=False, name=None):
+        flag = 0
+        try:
+            chrom = str(record[chrcol])
+            pos = int(record[poscol])
+            start = int(record[poscol]) - 9
+            end = int(record[poscol]) + 9
+            if (chrom, pos) in  mytype_counts.index:
+                cl.append("genomic_exact")
+                freq.append(str(mytype_counts.loc[(chrom,pos)]))
+                medVAF.append(str(mytype_med.loc[(chrom,pos)]))
+                Q25.append(str(mytype_Q25.loc[(chrom,pos)]))
+                Q75.append(str(mytype_Q75.loc[(chrom,pos)]))
+                positions.append(str(pos))
+                annot.append(str(mytype_var.loc[chrom, pos]['CONSENSUS_ANNOTATION'].values[0]))
+                flag = 1
+            if flag == 0: 
+                mytype_counts_sub=mytype_counts.loc[chrom]
+                if not mytype_counts_sub[(mytype_counts_sub.index >= start) & (mytype_counts_sub.index <= end)].empty:
+                    fr = []
+                    mv = []
+                    Q2 = []
+                    Q7 = []
+                    posit = []
+                    ann = []
+                    for i in mytype_counts_sub[(mytype_counts_sub.index >= start) & (mytype_counts_sub.index <= end)].index.values:
+                        fr.append(str(mytype_counts.loc[(chrom,i)]))
+                        mv.append(str(mytype_med.loc[(chrom,i)]))
+                        Q2.append(str(mytype_Q25.loc[(chrom,i)]))
+                        Q7.append(str(mytype_Q75.loc[(chrom,i)]))
+                        posit.append(str(i))
+                        ann.append(str(mytype_var.loc[(chrom,i)]['CONSENSUS_ANNOTATION'].values[0]))
+                    cl.append("genomic_close")
+                    freq.append((":".join(fr)))
+                    medVAF.append((":".join(mv)))
+                    Q25.append((":".join(Q2)))
+                    Q75.append((":".join(Q7)))
+                    positions.append((":".join(posit)))
+                    annot.append((":".join(ann)))
+                else:
+                    cl.append(None)
+                    freq.append(None)
+                    medVAF.append(None)
+                    Q25.append(None)
+                    Q75.append(None)
+                    positions.append(None)
+                    annot.append(None)
+        except:
+            cl.append(None)
+            freq.append(None)
+            medVAF.append(None)
+            Q25.append(None)
+            Q75.append(None)
+            positions.append(None)
+            annot.append(None)
+    variants["myTYPE_Class"] = cl
+    variants["myTYPE_Frequency"] = freq
+    variants["myTYPE_VAF"] = medVAF
+    variants["myTYPE_Q25"] = Q25
+    variants["myTYPE_Q75"] = Q75
+    variants["myTYPE_Positions"] = positions
+    variants["myTYPE_Annotation"] = annot
+    return(variants)
+
+def annotate_known(variants):
+    #Suspicious = 1 if previously found in MM. Includes any match in MMRF, Bolli and Lohr, and UNKNOWN/LIKELY/ONCOGENIC by mytype
+    mytype = variants['myTYPE_Annotation'].tolist()
+    myTYPE_somatic = []
+    for entry in mytype:
+        if pd.isnull(entry):
+            myTYPE_somatic.append(0)
+        elif re.search('ONCOGENIC', entry) or re.search('LIKELY', entry) or re.search('UNKNOWN', entry):
+            myTYPE_somatic.append(1)
+        else:
+            myTYPE_somatic.append(0)    
+    variants['myTYPE_somatic'] = myTYPE_somatic
+    variants['KNOWN_MM'] = np.where((variants['myTYPE_somatic'] == 1) | (variants['MMRF_Class'].notnull()) | (variants['Bolli_Class'].notnull()) | (variants['Lohr_Class'].notnull()), 1, 0)
+    variants=variants.drop('myTYPE_somatic', axis = 1)
     return(variants)
 
 ## APPLY FLAGS FOR FILTERING
@@ -328,11 +432,11 @@ def filter_nonpass(variants, mode):
     if mode == 'snv':
         #If SNVs, remove only non-synonymous mutations. Counts as COSMIC only exact and pos. 
         drop = ['non_synonymous_codon']
-        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['EFFECT'].isin(drop)) & (variants['ANY_EXACT_POS'] == 0) & (variants['MMRF_Class'].isnull()) & (variants['Bolli_Class'].isnull()), 1, 0)
+        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['EFFECT'].isin(drop)) & (variants['ANY_EXACT_POS'] == 0) & (variants['KNOWN_MM'] == 0), 1, 0)
         return(variants)
     elif mode == 'indel': 
         #If indels: do not take into account mutation effect, also allow all cosmic mentions as "in cosmic"
-        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['COSMIC'].isnull()) & (variants['MMRF_Class'].isnull()) & (variants['Bolli_Class'].isnull()), 1, 0)
+        variants['MFLAG_NONPASS'] = np.where((variants['FILTER'] != "PASS") & (variants['COSMIC'].isnull()) & (variants['KNOWN_MM'] == 0), 1, 0)
         return(variants)
 
 def filter_normals(variants):
@@ -342,6 +446,10 @@ def filter_normals(variants):
 
 def filter_VAF(variants):
     variants['MFLAG_VAF'] = np.where(variants['TARGET_VAF'] < 0.01, 1, 0)
+    return(variants)
+
+def filter_BIDIR(variants):
+    variants['MFLAG_BIDIR'] = np.where(variants['BIDIR'] == 0, 1, 0)
     return(variants)
 
 ## FILTER AND EXPORT
@@ -378,9 +486,10 @@ def filter_export(variants, outdir, name, mode):
         f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
         f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: {variants["MFLAG_MAF"].sum()}\n')
         f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS and not in COSMIC(exact/pos), MMRF or Bolli; EXCEPT stopgain, frameshift, etc: {variants["MFLAG_NONPASS"].sum()}\n')
+        f.write(f'MFLAG_NONPASS: NON-PASS IF not in cosmic, previously known in MM, not stopgain, splicesite..: {variants["MFLAG_NONPASS"].sum()}\n')
         f.write(f'MFLAG_NORM: Variant in 1 or more good normal: {variants["MFLAG_NORM"].sum()}\n')
         f.write(f'MFLAG_VAF: Remove variants with target VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
+        f.write(f'MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand): {variants["MFLAG_BIDIR"].sum(0)}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
@@ -397,7 +506,8 @@ def process(
         mmrf,
         bolli,
         lohr,
-        normals):
+        normals,
+        mytype):
     """Main function to process myTYPE SNV and indel output"""
     ##IMPORTING DATA
     variants = import_variants(infile, skiplines)
@@ -410,6 +520,8 @@ def process(
     variants = annotate_mmrf(variants, mmrf)
     variants = annotate_bolli(variants, bolli)
     variants = annotate_lohr(variants, lohr)
+    variants = annotate_mytype(variants, mytype)
+    variants = annotate_known(variants)
 
     ##FILTERS
     variants = filter_panel(variants, genes_bed) #Remove calls outside of myTYPE panel
@@ -419,6 +531,7 @@ def process(
     variants = filter_nonpass(variants, mode) #Remove non-PASS calls not present in COSMIC (exact or pos) or previous cohorts (MMRF, Bolli, etc.). EXCEPT nonsense, etc.
     variants = filter_normals(variants) #Remove calls present in at least 1 internal normal
     variants = filter_VAF(variants) #Remove calls with VAF < 1 %
+    variants = filter_BIDIR(variants) #Remove calls with BIDIR = 0
 
     ##OUTPUT
     name = namecore(infile)
