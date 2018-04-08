@@ -39,27 +39,25 @@ Data from the following datasets are incorporated as annotations for each varian
 
 ### Filtering by myeloma (M) FLAGs:
 
--MFLAG_PANEL: Gene not in panel
+- MFLAG_PANEL: Gene not in panel  
+- MFLAG_IGH: In IGH locus  
+- MFLAG_MAF: MAF > 3 % in exac/1000genomes
 
--MFLAG_IGH: In IGH locus
-
--MFLAG_MAF: MAF > 3 % in exac/1000genomes
-
--MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
+- MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
 
                 For SNVs: Only EXACT/POS in COSMIC counts as match.
 
--MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
+- MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
 
                 For SNVs: Only EXACT/POS in COSMIC counts as match.
 
                           Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
 
--MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
+- MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
 
--MFLAG_VAF: Remove variants with target VAF < 1 %
+- MFLAG_VAF: Remove variants with target VAF < 1 %
 
--MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
+- MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
 
 
 ### Output files
