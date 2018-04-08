@@ -16,17 +16,17 @@ Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
 
 ### Mandatory columns in input file
 
-ID_VARIANT = Unique identifier of each variant \n
-CHR = chromosome (int) \n
-START = variant start position (int) \n
-STOP = variant stop position (int) \n
-GENE = Gene name (str) \n
-TARGET_VAF = Variant allele frequency of variant (num) \n
-EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon' \n
-BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise \n
-FILTER = 'PASS' if variant has passed all previously applied variant caller filters. \n
-COSMIC = Cosmic annotation \n
-*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database. \n
+ID_VARIANT = Unique identifier of each variant  
+CHR = chromosome (int)  
+START = variant start position (int)  
+STOP = variant stop position (int)  
+GENE = Gene name (str)  
+TARGET_VAF = Variant allele frequency of variant (num)  
+EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon'  
+BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise  
+FILTER = 'PASS' if variant has passed all previously applied variant caller filters.  
+COSMIC = Cosmic annotation  
+*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.  
 
 ### Annotations:
 
