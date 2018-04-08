@@ -41,24 +41,12 @@ Data from the following datasets are incorporated as annotations for each varian
 
 - MFLAG_PANEL: Gene not in panel  
 - MFLAG_IGH: In IGH locus  
-- MFLAG_MAF: MAF > 3 % in exac/1000genomes
-
-- MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
-
-                For SNVs: Only EXACT/POS in COSMIC counts as match.
-
-- MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
-
-                For SNVs: Only EXACT/POS in COSMIC counts as match.
-
-                          Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
-
-- MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE
-
-- MFLAG_VAF: Remove variants with target VAF < 1 %
-
-- MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)
-
+- MFLAG_MAF: MAF > 3 % in exac/1000genomes  
+- MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC. For SNVs: Only EXACT/POS in COSMIC counts as match.  
+- MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM. For SNVs: Only EXACT/POS in COSMIC counts as match, and only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')  
+- MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE  
+- MFLAG_VAF: Remove variants with target VAF < 1 %  
+- MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)  
 
 ### Output files
 
@@ -68,41 +56,28 @@ Variants with no MFLAGs are output into a file for 'good calls'. Other variants 
 
 myeloma_SNV:
 
-  --mode [snv|indel]   Set input variant type: snv or indel  [required]
-
-  --outdir PATH        Path to output directory.  [required]
-
+  --mode [snv|indel]   Set input variant type: snv or indel  [required]  
+  --outdir PATH        Path to output directory.  [required]  
   --infile PATH        Path to input file with merged SNV calls in tsv.gz or
-                       csv format  [required]
-
+                       csv format  [required]  
   --skiplines INTEGER  Number of lines to skip at the top of input file when
-                       importing.  [default: 0]
-
+                       importing.  [default: 0]  
   --genes PATH         Excel file with column 'GENES'. Used to filter out
-                       variants in other genes.  [required]
-
+                       variants in other genes.  [required]  
   --genes_bed PATH     Bed file containing panel regions, to filter out
-                       outside calls.  [required]
-
+                       outside calls.  [required]  
   --igh PATH           BED file with IGH locus to filter out overlapping
-                       calls.  [required]
-
+                       calls.  [required]  
   --mmrf PATH          Path to MMRF reference file, tab separated text
-                       [required]
-
+                       [required]  
   --bolli PATH         Path to Bolli reference file, tab separated text
-                       [required]
-
+                       [required]  
   --lohr PATH          Path to Lohr reference file - tab separated hg19
-                       format.  [required]
-
-  --normals PATH       Path to good normal calls in tsv.gz format  [required]
-
-  --mytype PATH        Path to manually annotated myTYPE data in csv format
-
-  --version            Show the version and exit.
-
-  --help               Show this message and exit.
+                       format.  [required]  
+  --normals PATH       Path to good normal calls in tsv.gz format  [required]  
+  --mytype PATH        Path to manually annotated myTYPE data in csv format  
+  --version            Show the version and exit.  
+  --help               Show this message and exit.  
 
 ## Credits
 
