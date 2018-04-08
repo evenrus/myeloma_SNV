@@ -40,7 +40,7 @@ myeloma_SNV:
 ## Description
 Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
 
-###Mandatory input columns:
+###Mandatory columns in input file
 ID_VARIANT = Unique identifier of each variant
 CHR = chromosome (int)
 START = variant start position (int)
@@ -53,18 +53,20 @@ FILTER = 'PASS' if variant has passed all previously applied variant caller filt
 COSMIC = Cosmic annotation
 *_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.
 
-###Annotation columns:
-16 internal normals sequenced by myTYPE
-MMRF (889 WES, matched normal, not manually curated)
-Bolli (418 targeted seq, manually curated)
-Lohr ~200 WES/WGS
-myTYPE: Previously manually annotated myTYPE variants.
+###Annotations:
+Data from the following datasets are incorporated as annotations for each variant:
+-16 internal normals sequenced by myTYPE
+-MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)
+-Bolli Leukemia 2017 (418 targeted sequencing, manually curated)
+-Lohr Cell 2014 203 WES/WGS
+-myTYPE: Database of previously manually annotated variants 
 
 ###Filtering by myeloma (M) FLAGs:
 -MFLAG_PANEL: Gene not in panel
 -MFLAG_IGH: In IGH locus
 -MFLAG_MAF: MAF > 3 % in exac/1000genomes
--MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos)
+-MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC
+                For SNVs: Only EXACT/POS in COSMIC counts as match.
 -MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM.
                 For SNVs: Only EXACT/POS in COSMIC counts as match.
                           Only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')
