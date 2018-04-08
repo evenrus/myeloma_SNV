@@ -54,30 +54,28 @@ Variants with no MFLAGs are output into a file for 'good calls'. Other variants 
 
 ## Options
 
-myeloma_SNV:
-
-  --mode [snv|indel]   Set input variant type: snv or indel  [required]  
-  --outdir PATH        Path to output directory.  [required]  
-  --infile PATH        Path to input file with merged SNV calls in tsv.gz or
+  --mode [snv|indel]:    Set input variant type: snv or indel  [required]  
+  --outdir:        Path to output directory.  [required]  
+  --infile:        Path to input file with merged SNV calls in tsv.gz or
                        csv format  [required]  
-  --skiplines INTEGER  Number of lines to skip at the top of input file when
+  --skiplines:  Number of lines to skip at the top of input file when
                        importing.  [default: 0]  
-  --genes PATH         Excel file with column 'GENES'. Used to filter out
+  --genes:         Excel file with column 'GENES'. Used to filter out
                        variants in other genes.  [required]  
-  --genes_bed PATH     Bed file containing panel regions, to filter out
+  --genes_bed:     Bed file containing panel regions, to filter out
                        outside calls.  [required]  
-  --igh PATH           BED file with IGH locus to filter out overlapping
+  --igh:           BED file with IGH locus to filter out overlapping
                        calls.  [required]  
-  --mmrf PATH          Path to MMRF reference file, tab separated text
+  --mmrf:          Path to MMRF reference file, tab separated text
                        [required]  
-  --bolli PATH         Path to Bolli reference file, tab separated text
+  --bolli:         Path to Bolli reference file, tab separated text
                        [required]  
-  --lohr PATH          Path to Lohr reference file - tab separated hg19
+  --lohr:          Path to Lohr reference file - tab separated hg19
                        format.  [required]  
-  --normals PATH       Path to good normal calls in tsv.gz format  [required]  
-  --mytype PATH        Path to manually annotated myTYPE data in csv format  
-  --version            Show the version and exit.  
-  --help               Show this message and exit.  
+  --normals:       Path to good normal calls in tsv.gz format  [required]  
+  --mytype:        Path to manually annotated myTYPE data in csv format  
+  --version:            Show the version and exit.  
+  --help:               Show this message and exit.  
 
 ## Credits
 
