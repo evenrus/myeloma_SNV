@@ -30,17 +30,12 @@ COSMIC = Cosmic annotation
 
 ### Annotations:
 
-Data from the following datasets are incorporated as annotations for each variant:
-
--16 internal normals sequenced by myTYPE
-
--MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)
-
--Bolli Leukemia 2017 (418 targeted sequencing, manually curated)
-
--Lohr Cell 2014 203 WES/WGS
-
--myTYPE: Database of previously manually annotated variants 
+Data from the following datasets are incorporated as annotations for each variant:  
+- 16 internal normals sequenced by myTYPE  
+- MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)  
+- Bolli Leukemia 2017 (418 targeted sequencing, manually curated)  
+- Lohr Cell 2014 203 WES/WGS  
+- myTYPE: Database of previously manually annotated variants  
 
 ### Filtering by myeloma (M) FLAGs:
 
