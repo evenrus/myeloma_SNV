@@ -212,7 +212,9 @@ def annotate_bolli(variants, path_bolli):
                 cl.append("genomic_exact")
                 freq.append(str(bolli_counts.loc[(chrom,pos)]))
                 positions.append(str(pos))
-                annot.append(str(bolli_var.loc[chrom, pos]['Variant_class'].values[0]))
+                #Annotating each position with all unique Bolli classes
+                annot.append(', '.join(set(bolli_var.loc[chrom, pos]['Variant_class'].values)))
+                #annot.append(str(bolli_var.loc[chrom, pos]['Variant_class'].values[0]))
                 flag = 1
             if flag == 0: 
                 bolli_counts_sub=bolli_counts.loc[chrom]
@@ -223,7 +225,9 @@ def annotate_bolli(variants, path_bolli):
                     for i in bolli_counts_sub[(bolli_counts_sub.index >= start) & (bolli_counts_sub.index <= end)].index.values:
                         fr.append(str(bolli_counts.loc[(chrom,i)]))
                         posit.append(str(i))
-                        ann.append(str(bolli_var.loc[(chrom,i)]['Variant_class'].values[0]))
+                        #Annotating each position with all unique Bolli classes
+                        ann.append(', '.join(set(bolli_var.loc[chrom, i]['Variant_class'].values)))
+                        #ann.append(str(bolli_var.loc[(chrom,i)]['Variant_class'].values[0]))
                     cl.append("genomic_close")
                     freq.append((":".join(fr)))
                     positions.append((":".join(posit)))
@@ -295,6 +299,8 @@ def annotate_mytype(variants, path_mytype):
     mytype_counts = mytype.groupby(['CHR','START'])['ALT'].count()
     mytype_var = mytype.drop(['REF','ALT', "TARGET_VAF"], axis = 1) 
     mytype_var = mytype_var.set_index(['CHR', 'START'])
+    mytype_alt = mytype.drop(['REF','CONSENSUS_ANNOTATION', "TARGET_VAF"], axis = 1) 
+    mytype_alt = mytype_alt.set_index(['CHR', 'START'])
     mytype_med=mytype.groupby(['CHR','START'])['TARGET_VAF'].median()
     mytype_Q25=mytype.groupby(['CHR','START'])['TARGET_VAF'].quantile(q=0.25)
     mytype_Q75=mytype.groupby(['CHR','START'])['TARGET_VAF'].quantile(q=0.75)
@@ -304,6 +310,7 @@ def annotate_mytype(variants, path_mytype):
     Q25 = [] 
     Q75 = [] 
     positions = []
+    alt = []
     annot = []
     chrcol = variants.columns.get_loc("CHR")
     poscol = variants.columns.get_loc("START")
@@ -321,7 +328,10 @@ def annotate_mytype(variants, path_mytype):
                 Q25.append(str(mytype_Q25.loc[(chrom,pos)]))
                 Q75.append(str(mytype_Q75.loc[(chrom,pos)]))
                 positions.append(str(pos))
-                annot.append(str(mytype_var.loc[chrom, pos]['CONSENSUS_ANNOTATION'].values[0]))
+                #Annotating each position with all unique alternative alleles
+                alt.append(', '.join(set(mytype_alt.loc[chrom, pos]['ALT'].values)))
+                #Annotating each position with all unique myTYPE consensus annotation
+                annot.append(', '.join(set(mytype_var.loc[chrom, pos]['CONSENSUS_ANNOTATION'].values)))
                 flag = 1
             if flag == 0: 
                 mytype_counts_sub=mytype_counts.loc[chrom]
@@ -331,6 +341,7 @@ def annotate_mytype(variants, path_mytype):
                     Q2 = []
                     Q7 = []
                     posit = []
+                    al = []
                     ann = []
                     for i in mytype_counts_sub[(mytype_counts_sub.index >= start) & (mytype_counts_sub.index <= end)].index.values:
                         fr.append(str(mytype_counts.loc[(chrom,i)]))
@@ -338,13 +349,17 @@ def annotate_mytype(variants, path_mytype):
                         Q2.append(str(mytype_Q25.loc[(chrom,i)]))
                         Q7.append(str(mytype_Q75.loc[(chrom,i)]))
                         posit.append(str(i))
-                        ann.append(str(mytype_var.loc[(chrom,i)]['CONSENSUS_ANNOTATION'].values[0]))
+                        #Annotating each position with all unique alternative alleles
+                        al.append(', '.join(set(mytype_alt.loc[chrom, i]['ALT'].values)))
+                        #Annotating with all unique myTYPE consensus annotations for position
+                        ann.append(', '.join(set(mytype_var.loc[chrom, i]['CONSENSUS_ANNOTATION'].values)))
                     cl.append("genomic_close")
                     freq.append((":".join(fr)))
                     medVAF.append((":".join(mv)))
                     Q25.append((":".join(Q2)))
                     Q75.append((":".join(Q7)))
                     positions.append((":".join(posit)))
+                    alt.append((":".join(al)))
                     annot.append((":".join(ann)))
                 else:
                     cl.append(None)
@@ -353,6 +368,7 @@ def annotate_mytype(variants, path_mytype):
                     Q25.append(None)
                     Q75.append(None)
                     positions.append(None)
+                    alt.append(None)
                     annot.append(None)
         except:
             cl.append(None)
@@ -361,6 +377,7 @@ def annotate_mytype(variants, path_mytype):
             Q25.append(None)
             Q75.append(None)
             positions.append(None)
+            alt.append(None)
             annot.append(None)
     variants["myTYPE_Class"] = cl
     variants["myTYPE_Frequency"] = freq
@@ -368,6 +385,7 @@ def annotate_mytype(variants, path_mytype):
     variants["myTYPE_Q25"] = Q25
     variants["myTYPE_Q75"] = Q75
     variants["myTYPE_Positions"] = positions
+    variants["myTYPE_Alt"] = alt
     variants["myTYPE_Annotation"] = annot
     return(variants)
 
