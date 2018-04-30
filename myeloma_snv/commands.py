@@ -389,33 +389,41 @@ def annotate_mytype(variants, path_mytype):
     variants["myTYPE_Annotation"] = annot
     return(variants)
 
-def annotate_known(variants):
-    #Suspicious = 1 if previously found in MM. Includes any match in MMRF, Bolli and Lohr, and UNKNOWN/LIKELY/ONCOGENIC by mytype
-    mytype = variants['myTYPE_Annotation'].tolist()
-    myTYPE_somatic = []
-    for entry in mytype:
-        if pd.isnull(entry):
-            myTYPE_somatic.append(0)
-        elif re.search('ONCOGENIC', entry) or re.search('LIKELY', entry) or re.search('UNKNOWN', entry):
-            myTYPE_somatic.append(1)
-        else:
-            myTYPE_somatic.append(0)    
-    variants['myTYPE_somatic'] = myTYPE_somatic
+def annotate_known(variants, mytype):
+    #KNOWN_MM = 1 if previously found in MM. Includes any match in MMRF, Bolli and Lohr, and UNKNOWN/LIKELY/ONCOGENIC by mytype
+
+    # Define column with data on whether somatic variant has been identified by myTYPE for that position
+    if (mytype): #Only run function if data is passed to the optional variable "mytype"
+        mytype_annot = variants['myTYPE_Annotation'].tolist()
+        myTYPE_somatic = []
+        for entry in mytype_annot:
+            if pd.isnull(entry):
+                myTYPE_somatic.append(0)
+            elif re.search('ONCOGENIC', entry) or re.search('LIKELY', entry) or re.search('UNKNOWN', entry):
+                myTYPE_somatic.append(1)
+            else:
+                myTYPE_somatic.append(0)
+        variants['myTYPE_somatic'] = myTYPE_somatic
+    else:
+        variants['myTYPE_somatic'] = 0
+
+    # Define column KNOWN_MM based on annotation data         
     variants['KNOWN_MM'] = np.where((variants['myTYPE_somatic'] == 1) | (variants['MMRF_Class'].notnull()) | (variants['Bolli_Class'].notnull()) | (variants['Lohr_Class'].notnull()), 1, 0)
     variants=variants.drop('myTYPE_somatic', axis = 1)
     return(variants)
 
 ## APPLY FLAGS FOR FILTERING
-def filter_panel(variants, genes_bed):
-    #args: variants = variants file; genes = path to file with genes to include
+def filter_gene(variants, genes_bed):
+    #args: variants = variants file; genes_bed = path to file with beds to include
     variants_bed = variants[["CHR", "START", "END", "ID_VARIANT"]]
-    variants_bed = pyb.BedTool.from_dataframe(variants_bed)
-    genes = pyb.BedTool(genes_bed)
-    variants_inter = variants_bed.intersect(genes, u=True) ## Will not run due incomplete case in input file.
-    flaglist = []
-    if not variants_inter.head(n=1, as_string = True) == '':
-        flaglist = pyb.BedTool.to_dataframe(variants_inter)['name']
-    variants['MFLAG_PANEL'] = np.where(variants.ID_VARIANT.isin(flaglist), 0, 1)
+    variants_bed = pyb.BedTool.from_dataframe(variants_bed) #Turning variants file into bed format
+    genes = pyb.BedTool(genes_bed) #import list of genes in panel as bed format
+    variants_inter = variants_bed.intersect(genes, u=True) #bed file with intersection of panel and input file
+    flaglist = [] #empty list for names of variants in intersection bed file
+
+    if not variants_inter.head(n=1, as_string = True) == '': #if bed file is not empty
+        flaglist = pyb.BedTool.to_dataframe(variants_inter)['name'] #convert intersect bed file to data frame and subset col with variant ID
+    variants['MFLAG_GENE'] = np.where(variants.ID_VARIANT.isin(flaglist), 0, 1) #flag variant if ID is not in overlap list
     return(variants)
 
 def filter_IGH(variants, IGH_path):
@@ -500,7 +508,7 @@ def filter_export(variants, outdir, name, mode):
         f.write(f'####\nMode: {mode}\n')
         f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
-        f.write(f'MFLAG_PANEL: Gene not in panel: {variants["MFLAG_PANEL"].sum()}\n')
+        f.write(f'MFLAG_GENE: Gene not in list of genes to keep: {variants["MFLAG_GENE"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
         f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: {variants["MFLAG_MAF"].sum()}\n')
         f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
@@ -532,17 +540,19 @@ def process(
 
     ##ANNOTATIONS
     variants = annotate_COSMIC(variants) 
-    variants = annotate_genefreq(variants, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
+    if (genes): #Only runs function if a path was passed to optional argument "gene"
+        variants = annotate_genefreq(variants, genes) #Replace this with mutation frequency from MMRF? (and other raw data?)
     variants = annotate_maf(variants)
     variants = annotate_normals(variants, normals)
     variants = annotate_mmrf(variants, mmrf)
     variants = annotate_bolli(variants, bolli)
     variants = annotate_lohr(variants, lohr)
-    variants = annotate_mytype(variants, mytype)
-    variants = annotate_known(variants)
+    if (mytype): #Only runs function if a path was passed to optional argument "mytype"
+        variants = annotate_mytype(variants, mytype)
+    variants = annotate_known(variants, mytype)
 
     ##FILTERS
-    variants = filter_panel(variants, genes_bed) #Remove calls outside of myTYPE panel
+    variants = filter_gene(variants, genes_bed) #Remove calls outside of genes in 'genes_bed'
     variants = filter_IGH(variants, igh) #Remove calls in IGH locus
     variants = filter_MAF(variants) #Remove if MAF > 3 %.
     variants = filter_MAF_COSMIC(variants, mode) #Remove if >0.1 % MAF and not in COSMIC (exact or pos)

@@ -46,14 +46,14 @@ from myeloma_snv import commands
     help="Number of lines to skip at the top of input file when importing.")
 @click.option(
     "--genes",
-    required=True,
+    required=False,
     type=click.Path(exists=True),
-    help="Excel file with column 'GENES'. Used to filter out variants in other genes.")
+    help="Excel file containing previously the frequency of mutations in each gene. Colnames: GENE and *freq* ")
 @click.option(
     "--genes_bed",
     required=True,
     type=click.Path(exists=True),
-    help="Bed file containing panel regions, to filter out outside calls.")
+    help="Bed file genes to keep.")
 @click.option(
     "--igh",
     required=True,
