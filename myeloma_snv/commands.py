@@ -15,33 +15,33 @@ def import_variants(path, skiplines):
     Determine filetype and import, returns pandas dataFrame
     """
     if re.search('.csv$', path):
-        variants = pd.read_csv(
-            filepath_or_buffer=path,
-            skiprows=skiplines,
-            low_memory=False)
         try:
-            variants
+            variants = pd.read_csv(
+                filepath_or_buffer=path,
+                skiprows=skiplines,
+                low_memory=False)
         except NameError:
             raise Exception(f'Error when importing file {path}')
-        else:
-            print(f'Loaded file containing {variants.shape[0]} variant calls. Processing...')
-            return(variants)
+
+        print(f'Loaded file containing {variants.shape[0]} '
+              f'variant calls. Processing...')
+        return(variants)
     elif re.search('.tsv.gz$', path):
-        variants = pd.read_csv(
-            filepath_or_buffer=path,
-            compression='gzip',
-            sep='\t',
-            skiprows=skiplines,
-            low_memory=False)
         try:
-            variants
+            variants = pd.read_csv(
+                filepath_or_buffer=path,
+                compression='gzip',
+                sep='\t',
+                skiprows=skiplines,
+                low_memory=False)
         except NameError:
             raise Exception(f'Error when importing file {path}')
-        else:
-            print(f'Loaded file containing {variants.shape[0]} variant calls. Processing...')
-            return(variants)
+        print(f'Loaded file containing {variants.shape[0]} '
+              f'variant calls. Processing...')
+        return(variants)
     else:
-        raise Exception(f'Input file {path} has unsupported extension: try .csv or .tsv.gz')
+        raise Exception(f'Input file {path} has unsupported '
+                        f'extension: try .csv or .tsv.gz')
 
 ## ANNOTATION FUNCTIONS
 def annotate_cosmic(variants):
@@ -153,13 +153,13 @@ def annotate_mmrf(variants, path_mmrf):
     MMRF_Positions: START position of matches
     """
     mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
-    mmrf = mmrf[["Sample", "CHROM", "POS", "REF", "ALT",
+    mmrf = mmrf[["Sample", "#CHROM", "POS", "REF", "ALT",
                  "GEN[0].AR", "GEN[1].AR"]]
     mmrf = mmrf.drop_duplicates() ## What are these duplicates?
-    mmrfM = mmrf.groupby(['CHROM', 'POS'])['GEN[1].AR'].median()
-    mmrfC = mmrf.groupby(['CHROM', 'POS'])['GEN[1].AR'].count()
-    mmrfQ25 = mmrf.groupby(['CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.25)
-    mmrfQ75 = mmrf.groupby(['CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.75)
+    mmrfM = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].median()
+    mmrfC = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].count()
+    mmrfQ25 = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.25)
+    mmrfQ75 = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.75)
     cl = []
     freq = []
     medVAF = []
@@ -366,12 +366,12 @@ def annotate_mytype(variants, path_mytype):
     """
     mytype = pd.read_csv(filepath_or_buffer=path_mytype, sep=',')
     mytype = mytype[["CHR", "START", "REF", "ALT",
-                     "CONSENSUS_ANNOTATION", "TARGET_VAF"]]
+                     "MANUAL_ANNOTATION", "TARGET_VAF"]]
     mytype_counts = mytype.groupby(['CHR', 'START'])['ALT'].count()
     mytype_var = mytype.drop(['REF', 'ALT', "TARGET_VAF"], axis=1)
     mytype_var = mytype_var.set_index(['CHR', 'START'])
     mytype_alt = mytype.drop(
-        ['REF', 'CONSENSUS_ANNOTATION', "TARGET_VAF"], axis=1)
+        ['REF', 'MANUAL_ANNOTATION', "TARGET_VAF"], axis=1)
     mytype_alt = mytype_alt.set_index(['CHR', 'START'])
     mytype_med = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].median()
     mytype_Q25 = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].quantile(q=0.25)
@@ -405,7 +405,7 @@ def annotate_mytype(variants, path_mytype):
                     set(mytype_alt.loc[chrom, pos]['ALT'].values)))
                 # Annotating with all unique myTYPE consensus annotations
                 annot.append(', '.join(
-                    set(mytype_var.loc[chrom, pos]['CONSENSUS_ANNOTATION'].values)))
+                    set(mytype_var.loc[chrom, pos]['MANUAL_ANNOTATION'].values)))
                 flag = 1
             if flag == 0:
                 mytype_sub = mytype_counts.loc[chrom]
@@ -428,7 +428,7 @@ def annotate_mytype(variants, path_mytype):
                         al.append(', '.join(
                             set(mytype_alt.loc[chrom, i]['ALT'].values)))
                         ann.append(', '.join(
-                            set(mytype_var.loc[chrom, i]['CONSENSUS_ANNOTATION'].values)))
+                            set(mytype_var.loc[chrom, i]['MANUAL_ANNOTATION'].values)))
                     cl.append("genomic_close")
                     freq.append((":".join(fr)))
                     medVAF.append((":".join(mv)))
@@ -640,18 +640,29 @@ def filter_export(variants, outdir, name, mode):
     # Summary report
     with open(textname, 'w') as f:
         # Call the "Version" file for version info?
-        f.write(f'Somatic variant processing for myTYPE\nv.1.0\nTime of run start: {RUN_TIME.split(".")[0]}\n')
+        f.write(
+            f'Somatic variant processing for myTYPE\nv.1.0\nTime '
+            f'of run start: {RUN_TIME.split(".")[0]}\n'
+        )
         f.write(f'####\nMode: {mode}\n')
         f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
-        f.write(f'MFLAG_PANEL: Variant not in BED file of regions to keep: {variants["MFLAG_PANEL"].sum()}\n')
+        f.write(f'MFLAG_PANEL: Variant not in BED file of '
+                f'regions to keep: {variants["MFLAG_PANEL"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
-        f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: {variants["MFLAG_MAF"].sum()}\n')
-        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC (exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS IF not in cosmic, previously known in MM, not stopgain, splicesite..: {variants["MFLAG_NONPASS"].sum()}\n')
-        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: {variants["MFLAG_NORM"].sum()}\n')
-        f.write(f'MFLAG_VAF: Remove variants with target VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
-        f.write(f'MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand): {variants["MFLAG_BIDIR"].sum(0)}\n')
+        f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: '
+                f'{variants["MFLAG_MAF"].sum()}\n')
+        f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC '
+                f'(exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
+        f.write(f'MFLAG_NONPASS: NON-PASS IF not in cosmic, previously '
+                f'known in MM, not stopgain, splicesite..: '
+                f'{variants["MFLAG_NONPASS"].sum()}\n')
+        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: '
+                f'{variants["MFLAG_NORM"].sum()}\n')
+        f.write(f'MFLAG_VAF: Remove variants with target '
+                f'VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
+        f.write(f'MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads '
+                f'on one strand): {variants["MFLAG_BIDIR"].sum(0)}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
