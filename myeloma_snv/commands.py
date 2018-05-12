@@ -615,9 +615,6 @@ def filter_export(variants, outdir, name, mode):
     3. Writes files with good and bad variants.
     4. Creates processing summary report.
     """
-    # Remove unnecessary columns
-    variants = variants.drop(["ANY_EXACT_POS", "KNOWN_MM"], axis=1)
-
     # Filtering
     good = variants[variants.filter(regex='MFLAG').sum(axis=1) == 0]
     bad = variants[variants.filter(regex='MFLAG').sum(axis=1) > 0]
@@ -715,3 +712,4 @@ def process(
     name = namecore(infile)
     filter_export(variants, outdir, name, mode)
     print('Variant processing complete')
+    return(variants) # Added this here - may be necessary for test?

@@ -1,15 +1,18 @@
 """myeloma_snv cli tests."""
 
 from click.testing import CliRunner
-import pytest
 
 from myeloma_snv import cli
 
-def test_main():
-    """Sample test for main command."""
-    message = "This is a test message for the Universe."
-    runner = CliRunner()
-    params = ["message", message]
-    result = runner.invoke(cli.main, params)
-    assert message in result.output
+def test_main_snv():
+    """Test for main command."""
+    params = []
+    with open("../tests/test_args_snv.txt") as f:
+        params = f.readlines()
+    params = [x.strip() for x in params]
 
+    runner = CliRunner()
+
+    result = runner.invoke(cli.main, params)
+
+    assert result.output
