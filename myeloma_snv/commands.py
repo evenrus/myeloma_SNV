@@ -602,7 +602,8 @@ def filter_vaf(variants):
     """
     Filter MFLAG_VAF: 1 if target VAF < 1 %
     """
-    variants['MFLAG_VAF'] = np.where(variants['TARGET_VAF'] < 0.01, 1, 0)
+    variants['MFLAG_VAF'] = np.where(
+        (variants['TARGET_VAF'] < 0.01) & (variants['FILTER'] != 'PASS'), 1, 0)
     return(variants)
 
 def filter_bidir(variants):
@@ -672,7 +673,7 @@ def filter_export(variants, outdir, name, mode):
                 f'{variants["MFLAG_NONPASS"].sum()}\n')
         f.write(f'MFLAG_NORM: Variant in 1 or more good normal: '
                 f'{variants["MFLAG_NORM"].sum()}\n')
-        f.write(f'MFLAG_VAF: Remove variants with target '
+        f.write(f'MFLAG_VAF: Remove NON-PASS calls with target '
                 f'VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
         f.write(f'MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads '
                 f'on one strand): {variants["MFLAG_BIDIR"].sum(0)}\n')

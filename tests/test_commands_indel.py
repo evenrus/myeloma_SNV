@@ -66,7 +66,7 @@ def test_annotate_bolli_indel(data_indel, ref_indel, args):
     ref_annot = ref["Bolli_Annotation"].fillna(0).tolist()
     test_annot = test["Bolli_Annotation"].fillna(0).tolist()
     assert (ref_freq == test_freq) & (ref_annot == test_annot)
-    
+
 def test_annotate_lohr_indel(data_indel, ref_indel, args):
     """Test for lohr annotation of indels"""
     test = commands.annotate_lohr(data_indel,
@@ -117,7 +117,7 @@ def test_filter_drop_indel(ref_indel, args):
     """Test for filter drop function for indels"""
     test = ref_indel.drop('MFLAG_DROP', axis=1)
     test = commands.filter_drop(test,
-                                 args['genes_drop'])
+                                args['genes_drop'])
     ref = ref_indel.sort_values('ID_VARIANT')
     ref = ref["MFLAG_DROP"].astype('int').tolist()
     test = test.sort_values('ID_VARIANT')

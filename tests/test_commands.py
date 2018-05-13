@@ -134,7 +134,7 @@ def test_filter_drop_snv(ref_snv, args):
     """Test for filter drop function for SNVs"""
     test = ref_snv.drop('MFLAG_DROP', axis=1)
     test = commands.filter_drop(test,
-                                 args['genes_drop'])
+                                args['genes_drop'])
     ref = ref_snv.sort_values('ID_VARIANT')
     ref = ref["MFLAG_DROP"].astype('int').tolist()
     test = test.sort_values('ID_VARIANT')
