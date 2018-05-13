@@ -610,10 +610,9 @@ def namecore(infile):
 def filter_export(variants, outdir, name, mode):
     """
     Function properties:
-    1. Removes temporary data columns.
-    2. Filters variants into "good" or "bad" based on flags.
-    3. Writes files with good and bad variants.
-    4. Creates processing summary report.
+    1. Filters variants into "good" or "bad" based on flags.
+    2. Writes files with good and bad variants.
+    3. Creates processing summary report.
     """
     # Filtering
     good = variants[variants.filter(regex='MFLAG').sum(axis=1) == 0]
