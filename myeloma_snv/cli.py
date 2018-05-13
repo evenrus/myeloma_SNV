@@ -53,6 +53,11 @@ from myeloma_snv import commands
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
     help="Mutation frequencies by gene in excel-file. Cnames: GENE and *freq*")
 @click.option(
+    "--genes_drop",
+    required=False,
+    type=click.Path(file_okay=True, readable=True, resolve_path=True),
+    help="List of genes to filter out. Cname: GENE")
+@click.option(
     "--genes_bed",
     required=True,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
@@ -89,7 +94,7 @@ from myeloma_snv import commands
     help="Path to manually annotated myTYPE data in csv format")
 @click.version_option(__version__)
 
-def main(mode, outdir, infile, skiplines, genes, genes_bed,
+def main(mode, outdir, infile, skiplines, genes, genes_drop, genes_bed,
          igh, mmrf, bolli, lohr, normals, mytype):
     r"""
     Post-processing script for SNV and indel data from myTYPE
@@ -101,6 +106,7 @@ def main(mode, outdir, infile, skiplines, genes, genes_bed,
         skiplines=skiplines,
         outdir=outdir,
         genes=genes,
+        genes_drop=genes_drop,
         genes_bed=genes_bed,
         igh=igh,
         mmrf=mmrf,

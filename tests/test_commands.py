@@ -32,7 +32,7 @@ def test_annotate_cosmic_snv(data_snv, ref_snv):
 def test_annotate_genefreq_csv(data_snv, ref_snv, args):
     """Test for annotate gene frequency for SNVs"""
     test = commands.annotate_genefreq(data_snv,
-                                    args['genes'])
+                                      args['genes'])
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref = ref["MAX_MUTFREQ"].fillna(0).astype('float').round(1).tolist()
@@ -83,7 +83,7 @@ def test_annotate_bolli_snv(data_snv, ref_snv, args):
     ref_annot = ref["Bolli_Annotation"].fillna(0).tolist()
     test_annot = test["Bolli_Annotation"].fillna(0).tolist()
     assert (ref_freq == test_freq) & (ref_annot == test_annot)
-    
+
 def test_annotate_lohr_snv(data_snv, ref_snv, args):
     """Test for lohr annotation of SNVs"""
     test = commands.annotate_lohr(data_snv,
@@ -99,7 +99,7 @@ def test_annotate_lohr_snv(data_snv, ref_snv, args):
 def test_annotate_mytype_snv(data_snv, ref_snv, args):
     """Test for mytype annotation of SNVs"""
     test = commands.annotate_mytype(data_snv,
-                                  args['mytype'])
+                                    args['mytype'])
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["myTYPE_Frequency"].fillna(0).astype('str').tolist()
@@ -128,6 +128,17 @@ def test_filter_panel_snv(ref_snv, args):
     ref = ref["MFLAG_PANEL"].astype('int').tolist()
     test = test.sort_values('ID_VARIANT')
     test = test["MFLAG_PANEL"].astype('int').tolist()
+    assert ref == test
+
+def test_filter_drop_snv(ref_snv, args):
+    """Test for filter drop function for SNVs"""
+    test = ref_snv.drop('MFLAG_DROP', axis=1)
+    test = commands.filter_drop(test,
+                                 args['genes_drop'])
+    ref = ref_snv.sort_values('ID_VARIANT')
+    ref = ref["MFLAG_DROP"].astype('int').tolist()
+    test = test.sort_values('ID_VARIANT')
+    test = test["MFLAG_DROP"].astype('int').tolist()
     assert ref == test
 
 def test_filter_igh_snv(ref_snv, args):

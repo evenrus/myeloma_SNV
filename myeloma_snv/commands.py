@@ -54,7 +54,7 @@ def annotate_cosmic(variants):
     heme_exact = []
     cosmic = variants['COSMIC'].tolist()
     search_1 = 'HAEMATOPOIETIC_AND_LYMPHOID_TISSUE'
-    search_2 = '(?<=HAEMATOPOIETIC_AND_LYMPHOID_TISSUE=)\w+'
+    search_2 = r'(?<=HAEMATOPOIETIC_AND_LYMPHOID_TISSUE=)\w+'
     for entry in cosmic:
         if pd.isnull(entry):
             heme_exact.append(None)
@@ -135,7 +135,7 @@ def annotate_normals(variants, path_normals):
             tempC = tempC.ix[0]
             normalC.append(int(tempC))
             normalVAF.append(str(normals_median.loc[(chrom, pos)]))
-        except:
+        except KeyError:
             normalC.append(0)
             normalVAF.append("0")
     variants["Normals_Frequency"] = normalC
@@ -212,7 +212,7 @@ def annotate_mmrf(variants, path_mmrf):
                     q25.append(None)
                     q75.append(None)
                     positions.append(None)
-        except:
+        except KeyError:
             cl.append(None)
             freq.append(None)
             medVAF.append(None)
@@ -241,6 +241,7 @@ def annotate_bolli(variants, path_bolli):
     bolli_counts = bolli.groupby(['CHR', 'START'])['MT'].count()
     bolli_var = bolli.drop(['WT', 'MT'], axis=1)
     bolli_var = bolli_var.set_index(['CHR', 'START'])
+    bolli_var = bolli_var.sort_index()
     cl = []
     freq = []
     positions = []
@@ -260,7 +261,7 @@ def annotate_bolli(variants, path_bolli):
                 positions.append(str(pos))
                 # Annotating each position with all unique Bolli classes
                 annot.append(', '.join(
-                    set(bolli_var.loc[chrom, pos]['Variant_class'].values)))
+                    set(bolli_var.loc[chrom, pos].values.flat)))
                 flag = 1
             if flag == 0:
                 bolli_sub = bolli_counts.loc[chrom]
@@ -274,7 +275,7 @@ def annotate_bolli(variants, path_bolli):
                         fr.append(str(bolli_counts.loc[(chrom, i)]))
                         posit.append(str(i))
                         ann.append(', '.join(set(
-                            bolli_var.loc[chrom, i]['Variant_class'].values)))
+                            bolli_var.loc[chrom, i].values.flat)))
                     cl.append("genomic_close")
                     freq.append((":".join(fr)))
                     positions.append((":".join(posit)))
@@ -284,7 +285,7 @@ def annotate_bolli(variants, path_bolli):
                     freq.append(None)
                     positions.append(None)
                     annot.append(None)
-        except:
+        except KeyError:
             cl.append(None)
             freq.append(None)
             positions.append(None)
@@ -342,7 +343,7 @@ def annotate_lohr(variants, lohr_path):
                     cl.append(None)
                     freq.append(None)
                     positions.append(None)
-        except:
+        except KeyError:
             cl.append(None)
             freq.append(None)
             positions.append(None)
@@ -376,6 +377,8 @@ def annotate_mytype(variants, path_mytype):
     mytype_med = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].median()
     mytype_Q25 = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].quantile(q=0.25)
     mytype_Q75 = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].quantile(q=0.75)
+    mytype_alt = mytype_alt.sort_index()
+    mytype_var = mytype_var.sort_index()
     cl = []
     freq = []
     medVAF = []
@@ -402,10 +405,10 @@ def annotate_mytype(variants, path_mytype):
                 positions.append(str(pos))
                 # Annotating with all unique alternative alleles
                 alt.append(', '.join(
-                    set(mytype_alt.loc[chrom, pos]['ALT'].values)))
+                    set(mytype_alt.loc[chrom, pos].values.flat)))
                 # Annotating with all unique myTYPE consensus annotations
                 annot.append(', '.join(
-                    set(mytype_var.loc[chrom, pos]['MANUAL_ANNOTATION'].values)))
+                    set(mytype_var.loc[chrom, pos].values.flat)))
                 flag = 1
             if flag == 0:
                 mytype_sub = mytype_counts.loc[chrom]
@@ -426,9 +429,9 @@ def annotate_mytype(variants, path_mytype):
                         q7.append(str(mytype_Q75.loc[(chrom, i)]))
                         posit.append(str(i))
                         al.append(', '.join(
-                            set(mytype_alt.loc[chrom, i]['ALT'].values)))
+                            set(mytype_alt.loc[chrom, i].values.flat)))
                         ann.append(', '.join(
-                            set(mytype_var.loc[chrom, i]['MANUAL_ANNOTATION'].values)))
+                            set(mytype_var.loc[chrom, i].values.flat)))
                     cl.append("genomic_close")
                     freq.append((":".join(fr)))
                     medVAF.append((":".join(mv)))
@@ -446,7 +449,7 @@ def annotate_mytype(variants, path_mytype):
                     positions.append(None)
                     alt.append(None)
                     annot.append(None)
-        except:
+        except KeyError:
             cl.append(None)
             freq.append(None)
             medVAF.append(None)
@@ -479,10 +482,14 @@ def annotate_known(variants, mytype):
         for entry in mytype_annot:
             if pd.isnull(entry):
                 myTYPE_somatic.append(0)
-            elif re.search('ONCOGENIC', entry) or re.search('LIKELY', entry) or re.search('UNKNOWN', entry):
-                myTYPE_somatic.append(1)
             else:
-                myTYPE_somatic.append(0)
+                search_1 = re.search('ONCOGENIC', entry)
+                search_2 = re.search('LIKELY', entry)
+                search_3 = re.search('UNKNOWN', entry)
+                if search_1 or search_2 or search_3:
+                    myTYPE_somatic.append(1)
+                else:
+                    myTYPE_somatic.append(0)
         variants['myTYPE_somatic'] = myTYPE_somatic
     else:
         variants['myTYPE_somatic'] = 0
@@ -517,6 +524,14 @@ def filter_panel(variants, genes_bed):
         flaglist = pyb.BedTool.to_dataframe(variants_inter)['name']
     # Flag variant if ID is not in overlap list
     variants['MFLAG_PANEL'] = np.where(variants.ID_VARIANT.isin(flaglist), 0, 1)
+    return(variants)
+
+def filter_drop(variants, genes_drop):
+    """
+    Filter MFLAG_DROP: 1 if variant is in list of genes to drop.
+    """
+    drop = pd.read_excel(io=genes_drop)['GENE']
+    variants['MFLAG_DROP'] = np.where(variants.GENE.isin(drop), 1, 0)
     return(variants)
 
 def filter_igh(variants, igh_path):
@@ -645,6 +660,8 @@ def filter_export(variants, outdir, name, mode):
         f.write('Flagging variants for filtering:\n')
         f.write(f'MFLAG_PANEL: Variant not in BED file of '
                 f'regions to keep: {variants["MFLAG_PANEL"].sum()}\n')
+        f.write(f'MFLAG_DROP: Variant in excluded gene: '
+                f'{variants["MFLAG_DROP"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
         f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: '
                 f'{variants["MFLAG_MAF"].sum()}\n')
@@ -670,6 +687,7 @@ def process(
         skiplines,
         outdir,
         genes,
+        genes_drop,
         genes_bed,
         igh,
         mmrf,
@@ -699,6 +717,7 @@ def process(
 
     ## FILTERS
     variants = filter_panel(variants, genes_bed)
+    variants = filter_drop(variants, genes_drop)
     variants = filter_igh(variants, igh)
     variants = filter_maf(variants)
     variants = filter_maf_cosmic(variants, mode)

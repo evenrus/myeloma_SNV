@@ -113,6 +113,17 @@ def test_filter_panel_indel(ref_indel, args):
     test = test["MFLAG_PANEL"].astype('int').tolist()
     assert ref == test
 
+def test_filter_drop_indel(ref_indel, args):
+    """Test for filter drop function for indels"""
+    test = ref_indel.drop('MFLAG_DROP', axis=1)
+    test = commands.filter_drop(test,
+                                 args['genes_drop'])
+    ref = ref_indel.sort_values('ID_VARIANT')
+    ref = ref["MFLAG_DROP"].astype('int').tolist()
+    test = test.sort_values('ID_VARIANT')
+    test = test["MFLAG_DROP"].astype('int').tolist()
+    assert ref == test
+
 def test_filter_igh_indel(ref_indel, args):
     """Test for filter igh function for indels"""
     test = ref_indel.drop('MFLAG_IGH', axis=1)
