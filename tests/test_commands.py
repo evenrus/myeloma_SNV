@@ -2,6 +2,8 @@
 
 from myeloma_snv import commands
 
+# There can be several asserts in the same test!
+
 ## Testing import function
 def test_import_variants_csv(ref_snv, args):
     """Test for import variants csv format"""
@@ -54,11 +56,16 @@ def test_annotate_normals_snv(data_snv, ref_snv, args):
                                      args['normals_snv'])
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
-    ref_freq = ref["Normals_Frequency"].astype('str').tolist()
-    test_freq = test["Normals_Frequency"].astype('str').tolist()
-    ref_vaf = ref["Normals_median_VAF"].astype('float').round(2).tolist()
-    test_vaf = test["Normals_median_VAF"].astype('float').round(2).tolist()
-    assert (ref_freq == test_freq) & (ref_vaf == test_vaf)
+    ref_freq = ref["Normals_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Normals_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
+    ref_class = ref["Normals_Class"].fillna(0).tolist()
+    test_class = test["Normals_Class"].fillna(0).tolist()
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_mmrf_snv(data_snv, ref_snv, args):
     """Test for mmrf annotation of SNVs"""
@@ -67,10 +74,15 @@ def test_annotate_mmrf_snv(data_snv, ref_snv, args):
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["MMRF_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["MMRF_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["MMRF_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_class = ref["MMRF_Class"].fillna(0).tolist()
     test_class = test["MMRF_Class"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_class == test_class)
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_bolli_snv(data_snv, ref_snv, args):
     """Test for bolli annotation of SNVs"""
@@ -79,10 +91,15 @@ def test_annotate_bolli_snv(data_snv, ref_snv, args):
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["Bolli_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["Bolli_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Bolli_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_annot = ref["Bolli_Annotation"].fillna(0).tolist()
     test_annot = test["Bolli_Annotation"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_annot == test_annot)
+    assert ref_freq == test_freq
+    assert ref_annot == test_annot
 
 def test_annotate_lohr_snv(data_snv, ref_snv, args):
     """Test for lohr annotation of SNVs"""
@@ -91,10 +108,15 @@ def test_annotate_lohr_snv(data_snv, ref_snv, args):
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["Lohr_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["Lohr_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Lohr_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_class = ref["Lohr_Class"].fillna(0).tolist()
     test_class = test["Lohr_Class"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_class == test_class)
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_mytype_snv(data_snv, ref_snv, args):
     """Test for mytype annotation of SNVs"""
@@ -103,10 +125,15 @@ def test_annotate_mytype_snv(data_snv, ref_snv, args):
     ref = ref_snv.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["myTYPE_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["myTYPE_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["myTYPE_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_annot = ref["myTYPE_Annotation"].fillna(0).tolist()
     test_annot = test["myTYPE_Annotation"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_annot == test_annot)
+    assert ref_freq == test_freq
+    assert ref_annot == test_annot
 
 def test_annotate_known_snv(ref_snv, args):
     """Test for annotate known variants for SNVs"""
@@ -193,7 +220,6 @@ def test_filter_nonpass_snv(ref_snv, args):
 def test_filter_normals(ref_snv):
     """Test for filter normals function for SNVs"""
     test = ref_snv.drop('MFLAG_NORM', axis=1)
-    test['Normals_Frequency'] = test['Normals_Frequency'].astype('int')
     test = commands.filter_normals(test)
     ref = ref_snv.sort_values('ID_VARIANT')
     ref = ref["MFLAG_NORM"].astype('int').tolist()

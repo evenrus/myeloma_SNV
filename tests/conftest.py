@@ -24,7 +24,7 @@ def ref_snv(args):
         filepath_or_buffer=args['reference_snv'],
         low_memory=False,
         na_values='NA',
-        dtype = 'object')
+        dtype='object')
     return(reference)
 
 @pytest.fixture()
@@ -41,5 +41,6 @@ def ref_indel(args):
         filepath_or_buffer=args['reference_indel'],
         low_memory=False,
         na_values='NA',
-        dtype = 'object')
+        dtype='object')
     return(reference)
+    

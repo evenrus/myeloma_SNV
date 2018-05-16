@@ -1,5 +1,6 @@
 """variants_process main command."""
 
+import timeit
 import re
 from datetime import datetime
 from os.path import join
@@ -7,7 +8,7 @@ import pandas as pd
 import numpy as np
 import pybedtools as pyb
 
-RUN_TIME = str(datetime.today())
+START = timeit.default_timer()
 
 ## IMPORT VARIANTS FILE
 def import_variants(path, skiplines):
@@ -106,10 +107,16 @@ def annotate_maf(variants):
 
 def annotate_normals(variants, path_normals):
     """
-    Generate columns:
-    Normals_Frequency: Number of good normals sequenced by myTYPE who have a
-    variant with the same CHR and START.
-    Normals_median_VAF: Median VAF of matching variants in normals.
+    Annotates variants with internal normal controls:
+    Class:      Close   (chr, start within 10 bp),
+                Pos     (chr, start),
+                Exact   (chr, start, ref, alt)
+    Frequency:  Number of matches
+    VAF:        Median VAF
+    Q25:        25th VAF-quartile
+    Q75:        75th VAF-quartile
+    Positions:  START position
+    Change:     REF > ALT
     """
     normals = pd.read_csv(
         filepath_or_buffer=path_normals,
@@ -117,355 +124,346 @@ def annotate_normals(variants, path_normals):
         sep='\t',
         skiprows=1,
         low_memory=False)
-    normals_counts = normals.groupby(
-        ["CHR", "START", "REF", "ALT"]).size().reset_index(name="count")
-    normals_counts = normals_counts[["CHR", "START", "count"]].set_index(
-        ['CHR', 'START'])
-    normals_median = normals.groupby(
-        ['CHR', 'START'])['TARGET_VAF'].median()
-    normalC = []
-    normalVAF = []
-    chrcol = variants.columns.get_loc("CHR")
-    poscol = variants.columns.get_loc("START")
-    for record in variants.itertuples(index=False, name=None):
-        try:
-            chrom = str(record[chrcol])
-            pos = int(record[poscol])
-            tempC = normals_counts.loc[(chrom, pos), "count"]
-            tempC = tempC.ix[0]
-            normalC.append(int(tempC))
-            normalVAF.append(str(normals_median.loc[(chrom, pos)]))
-        except KeyError:
-            normalC.append(0)
-            normalVAF.append("0")
-    variants["Normals_Frequency"] = normalC
-    variants["Normals_median_VAF"] = normalVAF
+
+    normals = normals[["CHR", "START", "REF", "ALT", "TARGET_VAF"]]
+
+    def annot_row(row, data):
+        thres = 10
+        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
+        po = row['START'] in subdat['START'].as_matrix().astype(int)
+        close = (abs(subdat['START'].as_matrix() \
+                 .astype(int) - row['START']) < thres)
+        if po:
+            pos = subdat[subdat['START'] == row['START']]
+            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
+            if len(exact) > 0:
+                ex_out = ['genomic_exact',
+                          exact['REF'].count(),
+                          exact['TARGET_VAF'].median(),
+                          exact['TARGET_VAF'].quantile(q=0.25),
+                          exact['TARGET_VAF'].quantile(q=0.75),
+                          ', '.join(set(exact['START'].astype(str))),
+                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                          zip(exact['REF'].tolist(), exact['ALT'].tolist())]))
+                         ]
+                return pd.Series(ex_out)
+            else:
+                pos_out = ['genomic_pos',
+                           pos['REF'].count(),
+                           pos['TARGET_VAF'].median(),
+                           pos['TARGET_VAF'].quantile(q=0.25),
+                           pos['TARGET_VAF'].quantile(q=0.75),
+                           ', '.join(set(pos['START'].astype(str))),
+                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'].tolist(), pos['ALT'].tolist())]))
+                          ]
+                return pd.Series(pos_out)
+        elif close.any():
+            close = subdat[close]
+            cl_out = ['genomic_close',
+                      ', '.join(close.groupby(['ALT', 'REF']).size() \
+                      .astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .median().astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.25).astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.75).astype(str).tolist()),
+                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                      zip(close['REF'].tolist(), close['ALT'].tolist())]))
+                     ]
+            return pd.Series(cl_out)
+        else:
+            return pd.Series([None]*7)
+
+    out_names = ["_Class", "_Frequency", "_VAF", "_Q25", "_Q75",
+                 "_Position", "_Change"]
+    out_names = ['Normals' + s for s in out_names]
+
+    variants[out_names] = variants.apply(lambda row: annot_row(row, normals),
+                                         axis=1)
     return(variants)
 
 def annotate_mmrf(variants, path_mmrf):
     """
-    Generate columns:
-    MMRF_Class: Exact or close (within 10 bp) match for CHR and START
-    MMRF_Frequency: Number of matches
-    MMRF_VAF: Median VAF of matches
-    MMRF_Q25: 25th VAFF-quartile of matches
-    MMRF_Q75: 75th VAF-quartile of matches
-    MMRF_Positions: START position of matches
+    Annotates variants with MMRF data:
+    Class:      Close   (chr, start within 10 bp),
+                Pos     (chr, start),
+                Exact   (chr, start, ref, alt)
+    Frequency:  Number of matches
+    VAF:        Median VAF
+    Q25:        25th VAF-quartile
+    Q75:        75th VAF-quartile
+    Positions:  START position
+    Change:     REF > ALT
     """
     mmrf = pd.read_csv(filepath_or_buffer=path_mmrf, sep='\t')
-    mmrf = mmrf[["Sample", "#CHROM", "POS", "REF", "ALT",
-                 "GEN[0].AR", "GEN[1].AR"]]
+    mmrf = mmrf[["#CHROM", "POS", "REF", "ALT", "GEN[1].AR"]]
     mmrf = mmrf.drop_duplicates() ## What are these duplicates?
-    mmrfM = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].median()
-    mmrfC = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].count()
-    mmrfQ25 = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.25)
-    mmrfQ75 = mmrf.groupby(['#CHROM', 'POS'])['GEN[1].AR'].quantile(q=0.75)
-    cl = []
-    freq = []
-    medVAF = []
-    q25 = []
-    q75 = []
-    positions = []
-    chrcol = variants.columns.get_loc("CHR")
-    poscol = variants.columns.get_loc("START")
-    for record in variants.itertuples(index=False, name=None):
-        flag = 0
-        try:
-            chrom = str(record[chrcol])
-            pos = int(record[poscol])
-            start = int(record[poscol]) - 9
-            end = int(record[poscol]) + 9
-            if (chrom, pos) in mmrfC.index:
-                cl.append("genomic_exact")
-                freq.append(str(mmrfC.loc[(chrom, pos)]))
-                medVAF.append(str(mmrfM.loc[(chrom, pos)]))
-                q25.append(str(mmrfQ25.loc[(chrom, pos)]))
-                q75.append(str(mmrfQ75.loc[(chrom, pos)]))
-                positions.append(str(pos))
-                flag = 1
-            if flag == 0:
-                mmrfCsub = mmrfC.loc[chrom]
-                if not mmrfCsub[(mmrfCsub.index >= start) &
-                                (mmrfCsub.index <= end)].empty:
-                    fr = []
-                    mv = []
-                    q2 = []
-                    q7 = []
-                    posit = []
-                    for i in mmrfCsub[(mmrfCsub.index >= start) &
-                                      (mmrfCsub.index <= end)].index.values:
-                        fr.append(str(mmrfC.loc[(chrom, i)]))
-                        mv.append(str(mmrfM.loc[(chrom, i)]))
-                        q2.append(str(mmrfQ25.loc[(chrom, i)]))
-                        q7.append(str(mmrfQ75.loc[(chrom, i)]))
-                        posit.append(str(i))
-                    cl.append("genomic_close")
-                    freq.append((":".join(fr)))
-                    medVAF.append((":".join(mv)))
-                    q25.append((":".join(q2)))
-                    q75.append((":".join(q7)))
-                    positions.append((":".join(posit)))
-                else:
-                    cl.append(None)
-                    freq.append(None)
-                    medVAF.append(None)
-                    q25.append(None)
-                    q75.append(None)
-                    positions.append(None)
-        except KeyError:
-            cl.append(None)
-            freq.append(None)
-            medVAF.append(None)
-            q25.append(None)
-            q75.append(None)
-            positions.append(None)
-    variants["MMRF_Class"] = cl
-    variants["MMRF_Frequency"] = freq
-    variants["MMRF_VAF"] = medVAF
-    variants["MMRF_Q25"] = q25
-    variants["MMRF_Q75"] = q75
-    variants["MMRF_Positions"] = positions
+    mmrf.columns = ["CHR", "START", "REF", "ALT", "TARGET_VAF"]
+
+    def annot_row(row, data):
+        thres = 10
+        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
+        po = row['START'] in subdat['START'].as_matrix().astype(int)
+        close = (abs(subdat['START'].as_matrix() \
+                 .astype(int) - row['START']) < thres)
+        if po:
+            pos = subdat[subdat['START'] == row['START']]
+            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
+            if len(exact) > 0:
+                ex_out = ['genomic_exact',
+                          exact['REF'].count(),
+                          exact['TARGET_VAF'].median(),
+                          exact['TARGET_VAF'].quantile(q=0.25),
+                          exact['TARGET_VAF'].quantile(q=0.75),
+                          ', '.join(set(exact['START'].astype(str))),
+                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                          zip(exact['REF'].tolist(), exact['ALT'].tolist())]))
+                         ]
+                return pd.Series(ex_out)
+            else:
+                pos_out = ['genomic_pos',
+                           pos['REF'].count(),
+                           pos['TARGET_VAF'].median(),
+                           pos['TARGET_VAF'].quantile(q=0.25),
+                           pos['TARGET_VAF'].quantile(q=0.75),
+                           ', '.join(set(pos['START'].astype(str))),
+                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'].tolist(), pos['ALT'].tolist())]))
+                          ]
+                return pd.Series(pos_out)
+        elif close.any():
+            close = subdat[close]
+            cl_out = ['genomic_close',
+                      ', '.join(close.groupby(['ALT', 'REF']).size() \
+                      .astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .median().astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.25).astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.75).astype(str).tolist()),
+                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                      zip(close['REF'].tolist(), close['ALT'].tolist())]))
+                     ]
+            return pd.Series(cl_out)
+        else:
+            return pd.Series([None]*7)
+
+    out_names = ["_Class", "_Frequency", "_VAF", "_Q25", "_Q75",
+                 "_Position", "_Change"]
+    out_names = ['MMRF' + s for s in out_names]
+
+    variants[out_names] = variants.apply(lambda row: annot_row(row, mmrf),
+                                         axis=1)
     return(variants)
 
 def annotate_bolli(variants, path_bolli):
     """
-    Generate columns:
-    Bolli_Class: Exact or close (within 10 bp) match for CHR and START
-    Bolli_Frequency: Number of matches
-    Bolli_Positions: START position of matches
-    Bolli_Annotation: Manual annotation category, may include more than one if
-    variant has been non-uniformly annotated
+    Annotates variants with Bolli data:
+    Class:      Close   (chr, start within 10 bp),
+                Pos     (chr, start),
+                Exact   (chr, start, ref, alt)
+    Frequency:  Number of matches
+    Positions:  START position
+    Change:     REF > ALT
+    Annotation: Manual annotation category.
     """
     bolli = pd.read_csv(filepath_or_buffer=path_bolli, sep='\t')
     bolli = bolli[["CHR", "START", "WT", "MT", "Variant_class"]]
-    bolli_counts = bolli.groupby(['CHR', 'START'])['MT'].count()
-    bolli_var = bolli.drop(['WT', 'MT'], axis=1)
-    bolli_var = bolli_var.set_index(['CHR', 'START'])
-    bolli_var = bolli_var.sort_index()
-    cl = []
-    freq = []
-    positions = []
-    annot = []
-    chrcol = variants.columns.get_loc("CHR")
-    poscol = variants.columns.get_loc("START")
-    for record in variants.itertuples(index=False, name=None):
-        flag = 0
-        try:
-            chrom = str(record[chrcol])
-            pos = int(record[poscol])
-            start = int(record[poscol]) - 9
-            end = int(record[poscol]) + 9
-            if (chrom, pos) in  bolli_counts.index:
-                cl.append("genomic_exact")
-                freq.append(str(bolli_counts.loc[(chrom, pos)]))
-                positions.append(str(pos))
-                # Annotating each position with all unique Bolli classes
-                annot.append(', '.join(
-                    set(bolli_var.loc[chrom, pos].values.flat)))
-                flag = 1
-            if flag == 0:
-                bolli_sub = bolli_counts.loc[chrom]
-                bolli_sub = bolli_sub[(bolli_sub.index >= start) &
-                                      (bolli_sub.index <= end)]
-                if not bolli_sub.empty:
-                    fr = []
-                    posit = []
-                    ann = []
-                    for i in bolli_sub.index.values:
-                        fr.append(str(bolli_counts.loc[(chrom, i)]))
-                        posit.append(str(i))
-                        ann.append(', '.join(set(
-                            bolli_var.loc[chrom, i].values.flat)))
-                    cl.append("genomic_close")
-                    freq.append((":".join(fr)))
-                    positions.append((":".join(posit)))
-                    annot.append((":".join(ann)))
-                else:
-                    cl.append(None)
-                    freq.append(None)
-                    positions.append(None)
-                    annot.append(None)
-        except KeyError:
-            cl.append(None)
-            freq.append(None)
-            positions.append(None)
-            annot.append(None)
-    variants["Bolli_Class"] = cl
-    variants["Bolli_Frequency"] = freq
-    variants["Bolli_Positions"] = positions
-    variants["Bolli_Annotation"] = annot
+    bolli.columns = ["CHR", "START", "REF", "ALT", "ANNOTATION"]
+    def annot_row(row, data):
+        thres = 10
+        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
+        po = row['START'] in subdat['START'].as_matrix().astype(int)
+        close = (abs(subdat['START'].as_matrix() \
+                 .astype(int) - row['START']) < thres)
+        if po:
+            pos = subdat[subdat['START'] == row['START']]
+            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
+            if len(exact) > 0:
+                ex_out = ['genomic_exact',
+                          exact['REF'].count(),
+                          ', '.join(set(exact['START'].astype(str))),
+                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                          zip(exact['REF'].tolist(), exact['ALT'].tolist())])),
+                          ', '.join(set(exact['ANNOTATION']))
+                         ]
+                return pd.Series(ex_out)
+            else:
+                pos_out = ['genomic_pos',
+                           pos['REF'].count(),
+                           ', '.join(set(pos['START'].astype(str))),
+                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'].tolist(), pos['ALT'].tolist())])),
+                           ', '.join(set(pos['ANNOTATION']))
+                          ]
+                return pd.Series(pos_out)
+        elif close.any():
+            close = subdat[close]
+            cl_out = ['genomic_close',
+                      ', '.join(close.groupby(['ALT', 'REF']).size() \
+                      .astype(str).tolist()),
+                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                      zip(close['REF'].tolist(), close['ALT'].tolist())])),
+                      ', '.join(set(close['ANNOTATION']))
+                     ]
+            return pd.Series(cl_out)
+        else:
+            return pd.Series([None]*5)
+
+    out_names = ["_Class", "_Frequency",
+                 "_Position", "_Change", "_Annotation"]
+    out_names = ['Bolli' + s for s in out_names]
+
+    variants[out_names] = variants.apply(lambda row: annot_row(row, bolli),
+                                         axis=1)
     return(variants)
 
 def annotate_lohr(variants, lohr_path):
     """
-    Generate columns:
-    Lohr_Class: Exact or close (within 10 bp) match for CHR and START
-    Lohr_Frequency: Number of matches
-    Lohr_Positions: START position of matches
+    Annotates variants with lohr data:
+    Class:      Close   (chr, start within 10 bp),
+                Pos     (chr, start),
+                Exact   (chr, start, ref, alt)
+    Frequency:  Number of matches
+    Positions:  START position
+    Change:     REF > ALT
     """
     lohr = pd.read_csv(filepath_or_buffer=lohr_path, sep='\t')
-    lohr = lohr[["Tumor_Sample_Barcode", "Chromosome",
-                 "Start_Position", "Reference_Allele",
-                 "Tumor_Seq_Allele2", "Variant_Classification"]]
-    lohrC = lohr.groupby(
-        ['Chromosome', 'Start_Position'])['Tumor_Seq_Allele2'].count()
-    cl = []
-    freq = []
-    positions = []
-    chrcol = variants.columns.get_loc("CHR")
-    poscol = variants.columns.get_loc("START")
-    for record in variants.itertuples(index=False, name=None):
-        flag = 0
-        try:
-            chrom = str(record[chrcol])
-            pos = int(record[poscol])
-            start = int(record[poscol]) - 9
-            end = int(record[poscol]) + 9
-            if (chrom, pos) in lohrC.index:
-                cl.append("genomic_exact")
-                freq.append(str(lohrC.loc[(chrom, pos)]))
-                positions.append(str(pos))
-                flag = 1
-            if flag == 0:
-                lohrCsub = lohrC.loc[chrom]
-                lohrCsub = lohrCsub[(lohrCsub.index >= start) &
-                                    (lohrCsub.index <= end)]
-                if not lohrCsub.empty:
-                    fr = []
-                    posit = []
-                    for i in lohrCsub.index.values:
-                        fr.append(str(lohrC.loc[(chrom, i)]))
-                        posit.append(str(i))
-                    cl.append("genomic_close")
-                    freq.append((":".join(fr)))
-                    positions.append((":".join(posit)))
-                else:
-                    cl.append(None)
-                    freq.append(None)
-                    positions.append(None)
-        except KeyError:
-            cl.append(None)
-            freq.append(None)
-            positions.append(None)
-    variants["Lohr_Class"] = cl
-    variants["Lohr_Frequency"] = freq
-    variants["Lohr_Positions"] = positions
+    lohr = lohr[["Chromosome", "Start_Position", "Reference_Allele",
+                 "Tumor_Seq_Allele2"]]
+    lohr.columns = ["CHR", "START", "REF", "ALT"]
+
+    def annot_row(row, data):
+        thres = 10
+        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
+        po = row['START'] in subdat['START'].as_matrix().astype(int)
+        close = (abs(subdat['START'].as_matrix() \
+                 .astype(int) - row['START']) < thres)
+        if po:
+            pos = subdat[subdat['START'] == row['START']]
+            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
+            if len(exact) > 0:
+                ex_out = ['genomic_exact',
+                          exact['REF'].count(),
+                          ', '.join(set(exact['START'].astype(str))),
+                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                          zip(exact['REF'].tolist(), exact['ALT'].tolist())]))
+                         ]
+                return pd.Series(ex_out)
+            else:
+                pos_out = ['genomic_pos',
+                           pos['REF'].count(),
+                           ', '.join(set(pos['START'].astype(str))),
+                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'].tolist(), pos['ALT'].tolist())]))
+                          ]
+                return pd.Series(pos_out)
+        elif close.any():
+            close = subdat[close]
+            cl_out = ['genomic_close',
+                      ', '.join(close.groupby(['ALT', 'REF']).size() \
+                      .astype(str).tolist()),
+                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                      zip(close['REF'].tolist(), close['ALT'].tolist())]))
+                     ]
+            return pd.Series(cl_out)
+        else:
+            return pd.Series([None]*4)
+
+    out_names = ["_Class", "_Frequency", 
+                 "_Position", "_Change"]
+    out_names = ['Lohr' + s for s in out_names]
+
+    variants[out_names] = variants.apply(lambda row: annot_row(row, lohr),
+                                         axis=1)
     return(variants)
 
 def annotate_mytype(variants, path_mytype):
     """
-    Generate columns:
-    myTYPE_Class: Exact or close (within 10 bp) match for CHR and START
-    myTYPE_Frequency: Number of matches
-    myTYPE_VAF: Median VAF of matches
-    myTYPE_Q25: 25th VAF-quartile of matches
-    myTYPE_Q75: 75th VAF-quartile of matches
-    myTYPE_Positions: START position of matches
-    myTYPE_Alt: All unique alternative alleles with START == position
-    myTYPE_Annotation: Manual annotation category, may include more than one if
-    variant has been non-uniformly annotated
+    Annotates variants with previous myTYPE data:
+    Class:      Close   (chr, start within 10 bp),
+                Pos     (chr, start),
+                Exact   (chr, start, ref, alt)
+    Frequency:  Number of matches
+    VAF:        Median VAF
+    Q25:        25th VAF-quartile
+    Q75:        75th VAF-quartile
+    Positions:  START position
+    Change:     REF > ALT
+    Annotation: Manual annotation category.
     """
     mytype = pd.read_csv(filepath_or_buffer=path_mytype, sep=',')
     mytype = mytype[["CHR", "START", "REF", "ALT",
                      "MANUAL_ANNOTATION", "TARGET_VAF"]]
-    mytype_counts = mytype.groupby(['CHR', 'START'])['ALT'].count()
-    mytype_var = mytype.drop(['REF', 'ALT', "TARGET_VAF"], axis=1)
-    mytype_var = mytype_var.set_index(['CHR', 'START'])
-    mytype_alt = mytype.drop(
-        ['REF', 'MANUAL_ANNOTATION', "TARGET_VAF"], axis=1)
-    mytype_alt = mytype_alt.set_index(['CHR', 'START'])
-    mytype_med = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].median()
-    mytype_Q25 = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].quantile(q=0.25)
-    mytype_Q75 = mytype.groupby(['CHR', 'START'])['TARGET_VAF'].quantile(q=0.75)
-    mytype_alt = mytype_alt.sort_index()
-    mytype_var = mytype_var.sort_index()
-    cl = []
-    freq = []
-    medVAF = []
-    q25 = []
-    q75 = []
-    positions = []
-    alt = []
-    annot = []
-    chrcol = variants.columns.get_loc("CHR")
-    poscol = variants.columns.get_loc("START")
-    for record in variants.itertuples(index=False, name=None):
-        flag = 0
-        try:
-            chrom = str(record[chrcol])
-            pos = int(record[poscol])
-            start = int(record[poscol]) - 9
-            end = int(record[poscol]) + 9
-            if (chrom, pos) in  mytype_counts.index:
-                cl.append("genomic_exact")
-                freq.append(str(mytype_counts.loc[(chrom, pos)]))
-                medVAF.append(str(mytype_med.loc[(chrom, pos)]))
-                q25.append(str(mytype_Q25.loc[(chrom, pos)]))
-                q75.append(str(mytype_Q75.loc[(chrom, pos)]))
-                positions.append(str(pos))
-                # Annotating with all unique alternative alleles
-                alt.append(', '.join(
-                    set(mytype_alt.loc[chrom, pos].values.flat)))
-                # Annotating with all unique myTYPE consensus annotations
-                annot.append(', '.join(
-                    set(mytype_var.loc[chrom, pos].values.flat)))
-                flag = 1
-            if flag == 0:
-                mytype_sub = mytype_counts.loc[chrom]
-                mytype_sub = mytype_sub[(mytype_sub.index >= start) &
-                                        (mytype_sub.index <= end)]
-                if not mytype_sub.empty:
-                    fr = []
-                    mv = []
-                    q2 = []
-                    q7 = []
-                    posit = []
-                    al = []
-                    ann = []
-                    for i in mytype_sub.index.values:
-                        fr.append(str(mytype_counts.loc[(chrom, i)]))
-                        mv.append(str(mytype_med.loc[(chrom, i)]))
-                        q2.append(str(mytype_Q25.loc[(chrom, i)]))
-                        q7.append(str(mytype_Q75.loc[(chrom, i)]))
-                        posit.append(str(i))
-                        al.append(', '.join(
-                            set(mytype_alt.loc[chrom, i].values.flat)))
-                        ann.append(', '.join(
-                            set(mytype_var.loc[chrom, i].values.flat)))
-                    cl.append("genomic_close")
-                    freq.append((":".join(fr)))
-                    medVAF.append((":".join(mv)))
-                    q25.append((":".join(q2)))
-                    q75.append((":".join(q7)))
-                    positions.append((":".join(posit)))
-                    alt.append((":".join(al)))
-                    annot.append((":".join(ann)))
-                else:
-                    cl.append(None)
-                    freq.append(None)
-                    medVAF.append(None)
-                    q25.append(None)
-                    q75.append(None)
-                    positions.append(None)
-                    alt.append(None)
-                    annot.append(None)
-        except KeyError:
-            cl.append(None)
-            freq.append(None)
-            medVAF.append(None)
-            q25.append(None)
-            q75.append(None)
-            positions.append(None)
-            alt.append(None)
-            annot.append(None)
-    variants["myTYPE_Class"] = cl
-    variants["myTYPE_Frequency"] = freq
-    variants["myTYPE_VAF"] = medVAF
-    variants["myTYPE_Q25"] = q25
-    variants["myTYPE_Q75"] = q75
-    variants["myTYPE_Positions"] = positions
-    variants["myTYPE_Alt"] = alt
-    variants["myTYPE_Annotation"] = annot
+    mytype.columns = ["CHR", "START", "REF", "ALT",
+                      "ANNOTATION", "TARGET_VAF"]
+
+    def annot_row(row, data):
+        thres = 10
+        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
+        po = row['START'] in subdat['START'].as_matrix().astype(int)
+        close = (abs(subdat['START'].as_matrix() \
+                 .astype(int) - row['START']) < thres)
+        if po:
+            pos = subdat[subdat['START'] == row['START']]
+            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
+            if len(exact) > 0:
+                ex_out = ['genomic_exact',
+                          exact['REF'].count(),
+                          exact['TARGET_VAF'].median(),
+                          exact['TARGET_VAF'].quantile(q=0.25),
+                          exact['TARGET_VAF'].quantile(q=0.75),
+                          ', '.join(set(exact['START'].astype(str))),
+                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                          zip(exact['REF'].tolist(), exact['ALT'].tolist())])),
+                          ', '.join(set(exact['ANNOTATION']))
+                         ]
+                return pd.Series(ex_out)
+            else:
+                pos_out = ['genomic_pos',
+                           pos['REF'].count(),
+                           pos['TARGET_VAF'].median(),
+                           pos['TARGET_VAF'].quantile(q=0.25),
+                           pos['TARGET_VAF'].quantile(q=0.75),
+                           ', '.join(set(pos['START'].astype(str))),
+                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'].tolist(), pos['ALT'].tolist())])),
+                           ', '.join(set(pos['ANNOTATION']))
+                          ]
+                return pd.Series(pos_out)
+        elif close.any():
+            close = subdat[close]
+            cl_out = ['genomic_close',
+                      ', '.join(close.groupby(['ALT', 'REF']).size() \
+                      .astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .median().astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.25).astype(str).tolist()),
+                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
+                      .quantile(q=0.75).astype(str).tolist()),
+                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
+                      zip(close['REF'].tolist(), close['ALT'].tolist())])),
+                      ', '.join(set(close['ANNOTATION']))
+                     ]
+            return pd.Series(cl_out)
+        else:
+            return pd.Series([None]*8)
+
+    out_names = ["_Class", "_Frequency", "_VAF", "_Q25", "_Q75",
+                 "_Position", "_Change", "_Annotation"]
+    out_names = ['myTYPE' + s for s in out_names]
+
+    variants[out_names] = variants.apply(lambda row: annot_row(row, mytype),
+                                         axis=1)
     return(variants)
 
 def annotate_known(variants, mytype):
@@ -593,9 +591,11 @@ def filter_nonpass(variants, mode):
 
 def filter_normals(variants):
     """
-    Filter MFLAG_NORM: 1 if present in 1 or more good normal
+    Filter MFLAG_NORM: 1 if variant has genomic exact or pos in normals
     """
-    variants['MFLAG_NORM'] = np.where((variants['Normals_Frequency'] > 0), 1, 0)
+    match = ['genomic_exact', 'genomic_pos']
+    variants['MFLAG_NORM'] = np.where(variants['Normals_Class'] \
+                                      .isin(match), 1, 0)
     return(variants)
 
 def filter_vaf(variants):
@@ -650,12 +650,14 @@ def filter_export(variants, outdir, name, mode):
         index=False)
 
     # Summary report
+    stop = timeit.default_timer()
+
     with open(textname, 'w') as f:
         # Call the "Version" file for version info?
         f.write(
-            f'Somatic variant processing for myTYPE\nv.1.0\nTime '
-            f'of run start: {RUN_TIME.split(".")[0]}\n'
-        )
+            f'Somatic variant processing for myTYPE\nv.1.0\n '
+            f'Completed time: {str(datetime.today()).split(".")[0]}\n')
+        f.write(f'Run time: {round(stop-START, 3)}\n')
         f.write(f'####\nMode: {mode}\n')
         f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
@@ -671,7 +673,7 @@ def filter_export(variants, outdir, name, mode):
         f.write(f'MFLAG_NONPASS: NON-PASS IF not in cosmic, previously '
                 f'known in MM, not stopgain, splicesite..: '
                 f'{variants["MFLAG_NONPASS"].sum()}\n')
-        f.write(f'MFLAG_NORM: Variant in 1 or more good normal: '
+        f.write(f'MFLAG_NORM: Variant exact or pos in >0 good normals: '
                 f'{variants["MFLAG_NORM"].sum()}\n')
         f.write(f'MFLAG_VAF: Remove NON-PASS calls with target '
                 f'VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
@@ -718,7 +720,8 @@ def process(
 
     ## FILTERS
     variants = filter_panel(variants, genes_bed)
-    variants = filter_drop(variants, genes_drop)
+    if genes_drop:
+        variants = filter_drop(variants, genes_drop)
     variants = filter_igh(variants, igh)
     variants = filter_maf(variants)
     variants = filter_maf_cosmic(variants, mode)

@@ -37,11 +37,16 @@ def test_annotate_normals_indel(data_indel, ref_indel, args):
                                      args['normals_indel'])
     ref = ref_indel.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
-    ref_freq = ref["Normals_Frequency"].astype('str').tolist()
-    test_freq = test["Normals_Frequency"].astype('str').tolist()
-    ref_vaf = ref["Normals_median_VAF"].astype('float').round(2).tolist()
-    test_vaf = test["Normals_median_VAF"].astype('float').round(2).tolist()
-    assert (ref_freq == test_freq) & (ref_vaf == test_vaf)
+    ref_freq = ref["Normals_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Normals_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
+    ref_class = ref["Normals_Class"].fillna(0).tolist()
+    test_class = test["Normals_Class"].fillna(0).tolist()
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_mmrf_indel(data_indel, ref_indel, args):
     """Test for mmrf annotation of indels"""
@@ -50,10 +55,15 @@ def test_annotate_mmrf_indel(data_indel, ref_indel, args):
     ref = ref_indel.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["MMRF_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["MMRF_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["MMRF_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_class = ref["MMRF_Class"].fillna(0).tolist()
     test_class = test["MMRF_Class"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_class == test_class)
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_bolli_indel(data_indel, ref_indel, args):
     """Test for bolli annotation of indels"""
@@ -62,10 +72,15 @@ def test_annotate_bolli_indel(data_indel, ref_indel, args):
     ref = ref_indel.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["Bolli_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["Bolli_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Bolli_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_annot = ref["Bolli_Annotation"].fillna(0).tolist()
     test_annot = test["Bolli_Annotation"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_annot == test_annot)
+    assert ref_freq == test_freq
+    assert ref_annot == test_annot
 
 def test_annotate_lohr_indel(data_indel, ref_indel, args):
     """Test for lohr annotation of indels"""
@@ -74,10 +89,15 @@ def test_annotate_lohr_indel(data_indel, ref_indel, args):
     ref = ref_indel.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["Lohr_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["Lohr_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["Lohr_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_class = ref["Lohr_Class"].fillna(0).tolist()
     test_class = test["Lohr_Class"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_class == test_class)
+    assert ref_freq == test_freq
+    assert ref_class == test_class
 
 def test_annotate_mytype_indel(data_indel, ref_indel, args):
     """Test for mytype annotation of indels"""
@@ -86,10 +106,15 @@ def test_annotate_mytype_indel(data_indel, ref_indel, args):
     ref = ref_indel.sort_values('ID_VARIANT')
     test = test.sort_values('ID_VARIANT')
     ref_freq = ref["myTYPE_Frequency"].fillna(0).astype('str').tolist()
-    test_freq = test["myTYPE_Frequency"].fillna(0).astype('str').tolist()
+    test_freq = test["myTYPE_Frequency"].fillna(0)
+    try:
+        test_freq = test_freq.astype(int).astype('str').tolist()
+    except ValueError:
+        test_freq = test_freq.astype('str').tolist()
     ref_annot = ref["myTYPE_Annotation"].fillna(0).tolist()
     test_annot = test["myTYPE_Annotation"].fillna(0).tolist()
-    assert (ref_freq == test_freq) & (ref_annot == test_annot)
+    assert ref_freq == test_freq
+    assert ref_annot == test_annot
 
 def test_annotate_known_indel(ref_indel, args):
     """Test for annotate known variants for indels"""
@@ -176,7 +201,6 @@ def test_filter_nonpass_indel(ref_indel, args):
 def test_filter_normals(ref_indel):
     """Test for filter normals function for indels"""
     test = ref_indel.drop('MFLAG_NORM', axis=1)
-    test['Normals_Frequency'] = test['Normals_Frequency'].astype('int')
     test = commands.filter_normals(test)
     ref = ref_indel.sort_values('ID_VARIANT')
     ref = ref["MFLAG_NORM"].astype('int').tolist()
