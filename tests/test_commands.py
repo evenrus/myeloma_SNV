@@ -7,16 +7,14 @@ from myeloma_snv import commands
 ## Testing import function
 def test_import_variants_csv(ref_snv, args):
     """Test for import variants csv format"""
-    test = commands.import_variants(args['infile_csv'],
-                                    int(args['skiplines_def']))
+    test = commands.import_variants(args['infile_csv'])
     ref = ref_snv["ID_VARIANT"].tolist().sort()
     test = test["ID_VARIANT"].tolist().sort()
     assert ref == test
 
 def test_import_variants_gz(ref_snv, args):
     """Test for import variants gz format"""
-    test = commands.import_variants(args['infile_gz'],
-                                    int(args['skiplines_def']))
+    test = commands.import_variants(args['infile_gz'])
     ref = ref_snv["ID_VARIANT"].tolist().sort()
     test = test["ID_VARIANT"].tolist().sort()
     assert ref == test

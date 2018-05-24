@@ -11,7 +11,7 @@ import pybedtools as pyb
 START = timeit.default_timer()
 
 ## IMPORT VARIANTS FILE
-def import_variants(path, skiplines):
+def import_variants(path):
     """
     Determine filetype and import, returns pandas dataFrame
     """
@@ -19,7 +19,7 @@ def import_variants(path, skiplines):
         try:
             variants = pd.read_csv(
                 filepath_or_buffer=path,
-                skiprows=skiplines,
+                comment='#',
                 low_memory=False)
         except NameError:
             raise Exception(f'Error when importing file {path}')
@@ -33,7 +33,7 @@ def import_variants(path, skiplines):
                 filepath_or_buffer=path,
                 compression='gzip',
                 sep='\t',
-                skiprows=skiplines,
+                comment='#',
                 low_memory=False)
         except NameError:
             raise Exception(f'Error when importing file {path}')
@@ -119,57 +119,49 @@ def annotate_normals(variants, path_normals):
     Change:     REF > ALT
     """
     normals = pd.read_csv(
-        filepath_or_buffer=path_normals,
-        compression='gzip',
-        sep='\t',
-        skiprows=1,
-        low_memory=False)
+        filepath_or_buffer=path_normals)
 
-    normals = normals[["CHR", "START", "REF", "ALT", "TARGET_VAF"]]
-
+    normals = normals.set_index(['CHR','START'])
+    
     def annot_row(row, data):
         thres = 10
-        subdat = data[data['CHR'].astype(str) == str(row['CHR'])]
-        po = row['START'] in subdat['START'].as_matrix().astype(int)
-        close = (abs(subdat['START'].as_matrix() \
-                 .astype(int) - row['START']) < thres)
+        chrom = str(row['CHR'])
+        start = row['START']
+        po = (chrom, start) in data.index
+        close = data.ix[(chrom, start-thres):(chrom, start+thres)]
         if po:
-            pos = subdat[subdat['START'] == row['START']]
+            pos = data.loc[(chrom, start)]
             exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
             if len(exact) > 0:
                 ex_out = ['genomic_exact',
-                          exact['REF'].count(),
-                          exact['TARGET_VAF'].median(),
-                          exact['TARGET_VAF'].quantile(q=0.25),
-                          exact['TARGET_VAF'].quantile(q=0.75),
-                          ', '.join(set(exact['START'].astype(str))),
-                          ', '.join(set([str(a) + '>' + str(b) for a, b in \
-                          zip(exact['REF'].tolist(), exact['ALT'].tolist())]))
+                          exact['count'].iloc[0],
+                          exact['MEDIAN_VAF'].iloc[0],
+                          exact['VAF_Q25'].iloc[0],
+                          exact['VAF_Q75'].iloc[0],
+                          start,
+                          exact['REF'].iloc[0] + '>' + exact['ALT'].iloc[0]
                          ]
                 return pd.Series(ex_out)
             else:
                 pos_out = ['genomic_pos',
-                           pos['REF'].count(),
-                           pos['TARGET_VAF'].median(),
-                           pos['TARGET_VAF'].quantile(q=0.25),
-                           pos['TARGET_VAF'].quantile(q=0.75),
-                           ', '.join(set(pos['START'].astype(str))),
-                           ', '.join(set([str(a) + '>' + str(b) for a, b in \
-                           zip(pos['REF'].tolist(), pos['ALT'].tolist())]))
+                           ', '.join(pos['count'].astype(str)),
+                           ', '.join(pos['MEDIAN_VAF'].astype(str)),
+                           ', '.join(pos['VAF_Q25'].astype(str)),
+                           ', '.join(pos['VAF_Q75'].astype(str)),
+                           ', '.join([str(i) for i in pos.index.\
+                                      get_level_values('START').tolist()]),
+                           ', '.join([str(a) + '>' + str(b) for a, b in \
+                           zip(pos['REF'], pos['ALT'])])
                           ]
                 return pd.Series(pos_out)
-        elif close.any():
-            close = subdat[close]
+        elif close.shape[0] > 0:
             cl_out = ['genomic_close',
-                      ', '.join(close.groupby(['ALT', 'REF']).size() \
-                      .astype(str).tolist()),
-                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
-                      .median().astype(str).tolist()),
-                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
-                      .quantile(q=0.25).astype(str).tolist()),
-                      ', '.join(close.groupby(['ALT', 'REF'])['TARGET_VAF'] \
-                      .quantile(q=0.75).astype(str).tolist()),
-                      ', '.join(set(close['START'].astype(str))),
+                      ', '.join(close['count'].astype(str).tolist()),
+                      ', '.join(close['MEDIAN_VAF'].astype(str).tolist()),
+                      ', '.join(close['VAF_Q25'].astype(str).tolist()),
+                      ', '.join(close['VAF_Q75'].astype(str).tolist()),
+                      ', '.join([str(i) for i in close.index.\
+                                 get_level_values('START').tolist()]),
                       ', '.join(set([str(a) + '>' + str(b) for a, b in \
                       zip(close['REF'].tolist(), close['ALT'].tolist())]))
                      ]
@@ -687,7 +679,6 @@ def filter_export(variants, outdir, name, mode):
 def process(
         mode,
         infile,
-        skiplines,
         outdir,
         genes,
         genes_drop,
@@ -700,7 +691,7 @@ def process(
         mytype):
     """Main function to process myTYPE SNV and indel output"""
     ## IMPORTING DATA
-    variants = import_variants(infile, skiplines)
+    variants = import_variants(infile)
 
     ## ANNOTATIONS
     variants = annotate_cosmic(variants)

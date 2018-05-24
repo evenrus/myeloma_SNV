@@ -43,11 +43,6 @@ from myeloma_snv import commands
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
     help="Path to input file with merged SNV calls in tsv.gz or csv format")
 @click.option(
-    "--skiplines",
-    default=0,
-    show_default=True,
-    help="Number of lines to skip at the top of input file when importing.")
-@click.option(
     "--genes",
     required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
@@ -94,7 +89,7 @@ from myeloma_snv import commands
     help="Path to manually annotated myTYPE data in csv format")
 @click.version_option(__version__)
 
-def main(mode, outdir, infile, skiplines, genes, genes_drop, genes_bed,
+def main(mode, outdir, infile, genes, genes_drop, genes_bed,
          igh, mmrf, bolli, lohr, normals, mytype):
     r"""
     Post-processing script for SNV and indel data from myTYPE
@@ -103,7 +98,6 @@ def main(mode, outdir, infile, skiplines, genes, genes_drop, genes_bed,
     commands.process(
         mode=mode,
         infile=infile,
-        skiplines=skiplines,
         outdir=outdir,
         genes=genes,
         genes_drop=genes_drop,
