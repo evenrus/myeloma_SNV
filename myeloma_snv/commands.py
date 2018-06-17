@@ -93,6 +93,7 @@ def annotate_genefreq(variants, genes):
     freqlist['MAX_MUTFREQ'] = round(
         freqlist.filter(regex='freq').max(axis=1), 1)
     freqlist = freqlist[['GENE', 'MAX_MUTFREQ']]
+    # Rename GENE variable to VAG_GENE
     variants = pd.merge(variants, freqlist, how='left')
     return(variants)
 
@@ -102,7 +103,26 @@ def annotate_maf(variants):
     MAX_MAF: Maximal MAF of variant in any normal database
     """
     variants['MAX_MAF'] = 0 # Sets variable to 0 if frequency is not reported
-    variants['MAX_MAF'] = variants.filter(regex='MAF').max(axis=1)
+    variants['MAX_MAF'] = variants.filter(regex='_AF$|_AF_').max(axis=1)
+    return(variants)
+
+def annotate_vaf_dep(variants):
+    """
+    Generate columns:
+    TARGET_VAF: Mean TARGET_VAF from different callers
+    REFERENCE_VAF: Mean REFERENCE_VAF from different callers
+    TARGET_DEPTH: Mean TARGET_DEPTH from different callers
+    REFERENCE_DEPTH: Mean REFERENCE_DEPTH from different callers
+    """
+    variants['TARGET_VAF'] = 0
+    variants['TARGET_VAF'] = variants.filter(regex='TARGET_VAF').mean(axis=1)
+    variants['REFERENCE_VAF'] = 0
+    variants['REFERENCE_VAF'] = variants.filter(regex='REFERENCE_VAF').mean(axis=1)
+    variants['TARGET_DEPTH'] = 0
+    variants['TARGET_DEPTH'] = variants.filter(regex='TARGET_DEPTH').mean(axis=1)
+    variants['REFERENCE_DEPTH'] = 0
+    variants['REFERENCE_DEPTH'] = variants.filter(regex='REFERENCE_DEPTH').mean(axis=1)
+    variants['DIRPROP'] = variants.filter(regex='DIRPROP').mean(axis=1)
     return(variants)
 
 def annotate_normals(variants, path_normals):
@@ -111,17 +131,13 @@ def annotate_normals(variants, path_normals):
     Class:      Close   (chr, start within 10 bp),
                 Pos     (chr, start),
                 Exact   (chr, start, ref, alt)
-    Frequency:  Number of matches
-    VAF:        Median VAF
-    Q25:        25th VAF-quartile
-    Q75:        75th VAF-quartile
     Positions:  START position
     Change:     REF > ALT
     """
     normals = pd.read_csv(
         filepath_or_buffer=path_normals)
 
-    normals = normals.set_index(['CHR','START'])
+    normals = normals.set_index(['CHROM','POS']).sort_index()
     
     def annot_row(row, data):
         thres = 10
@@ -134,43 +150,30 @@ def annotate_normals(variants, path_normals):
             exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
             if len(exact) > 0:
                 ex_out = ['genomic_exact',
-                          exact['count'].iloc[0],
-                          exact['MEDIAN_VAF'].iloc[0],
-                          exact['VAF_Q25'].iloc[0],
-                          exact['VAF_Q75'].iloc[0],
                           start,
                           exact['REF'].iloc[0] + '>' + exact['ALT'].iloc[0]
                          ]
                 return pd.Series(ex_out)
             else:
                 pos_out = ['genomic_pos',
-                           ', '.join(pos['count'].astype(str)),
-                           ', '.join(pos['MEDIAN_VAF'].astype(str)),
-                           ', '.join(pos['VAF_Q25'].astype(str)),
-                           ', '.join(pos['VAF_Q75'].astype(str)),
                            ', '.join([str(i) for i in pos.index.\
-                                      get_level_values('START').tolist()]),
+                                      get_level_values('POS').tolist()]),
                            ', '.join([str(a) + '>' + str(b) for a, b in \
                            zip(pos['REF'], pos['ALT'])])
                           ]
                 return pd.Series(pos_out)
         elif close.shape[0] > 0:
             cl_out = ['genomic_close',
-                      ', '.join(close['count'].astype(str).tolist()),
-                      ', '.join(close['MEDIAN_VAF'].astype(str).tolist()),
-                      ', '.join(close['VAF_Q25'].astype(str).tolist()),
-                      ', '.join(close['VAF_Q75'].astype(str).tolist()),
                       ', '.join([str(i) for i in close.index.\
-                                 get_level_values('START').tolist()]),
+                                 get_level_values('POS').tolist()]),
                       ', '.join(set([str(a) + '>' + str(b) for a, b in \
                       zip(close['REF'].tolist(), close['ALT'].tolist())]))
                      ]
             return pd.Series(cl_out)
         else:
-            return pd.Series([None]*7)
+            return pd.Series([None]*3)
 
-    out_names = ["_Class", "_Frequency", "_VAF", "_Q25", "_Q75",
-                 "_Position", "_Change"]
+    out_names = ["_Class", "_Position", "_Change"]
     out_names = ['Normals' + s for s in out_names]
 
     variants[out_names] = variants.apply(lambda row: annot_row(row, normals),
@@ -494,6 +497,14 @@ def annotate_known(variants, mytype):
     return(variants)
 
 ## APPLY FLAGS FOR FILTERING
+def filter_call(variants):
+    """
+    Filter MFLAG_CALL: 1 if variant is not called by either caller
+                          (i.e. caveman, strelka or mutect)
+    """
+    variants['MFLAG_CALL'] = np.where(variants['NUMBER_OF_CALLERS'] == 0, 1, 0)
+    return(variants)
+
 def filter_panel(variants, genes_bed):
     """
     Filter MFLAG_PANEL: 1 if variant is not in BED file of regions to keep
@@ -521,7 +532,7 @@ def filter_drop(variants, genes_drop):
     Filter MFLAG_DROP: 1 if variant is in list of genes to drop.
     """
     drop = pd.read_excel(io=genes_drop)['GENE']
-    variants['MFLAG_DROP'] = np.where(variants.GENE.isin(drop), 1, 0)
+    variants['MFLAG_DROP'] = np.where(variants.VAG_GENE.isin(drop), 1, 0)
     return(variants)
 
 def filter_igh(variants, igh_path):
@@ -564,19 +575,20 @@ def filter_maf_cosmic(variants, mode):
 def filter_nonpass(variants, mode):
     """
     Filter MFLAG_MAF: 1 if NON-PASS AND not in cosmic or previously known in MM
-    Counts SNVs and Indels as "in cosmic" like for MAFCOS flag.
-    For SNV: Only removes missense mutations with this flag
+    Indels: Counts as "in cosmic" like for MAFCOS flag.
+    SNV:    Only removes missense mutations with this flag
+            Counts as "in cosmic" only if HEME_EXACT
     """
     if mode == 'snv':
         drop = ['non_synonymous_codon']
         variants['MFLAG_NONPASS'] = np.where(
-            (variants['FILTER'] != "PASS") &
-            (variants['EFFECT'].isin(drop)) &
+            (variants['FLAGS_ALL'] != 'PASS') &
+            (variants['VAG_EFFECT'].isin(drop)) &
             (variants['ANY_EXACT_POS'] == 0) &
             (variants['KNOWN_MM'] == 0), 1, 0)
         return(variants)
     variants['MFLAG_NONPASS'] = np.where(
-        (variants['FILTER'] != "PASS") &
+        (variants['FLAGS_ALL'] != 'PASS') &
         (variants['COSMIC'].isnull()) &
         (variants['KNOWN_MM'] == 0), 1, 0)
     return(variants)
@@ -592,17 +604,22 @@ def filter_normals(variants):
 
 def filter_vaf(variants):
     """
-    Filter MFLAG_VAF: 1 if target VAF < 1 %
+    Filter MFLAG_VAF: 1 if non-pass and 
+                    target VAF < 1 %, or 
+                    reference VAF is > 1% or
+                    VAF not estimated (i.e. 0).
     """
     variants['MFLAG_VAF'] = np.where(
-        (variants['TARGET_VAF'] < 0.01) & (variants['FILTER'] != 'PASS'), 1, 0)
+        (variants['NUMBER_OF_CALLERS'] == 0) &
+        (variants['TARGET_VAF'] < 0.01) & 
+        (variants['REFERENCE_VAF'] > 0.01), 1, 0)
     return(variants)
 
-def filter_bidir(variants):
+def filter_dir(variants):
     """
-    Filter MFLAG_BIDIR: 1 if BIDIR = 0
+    Filter MFLAG_DIR: 1 if DIRPROP = 0
     """
-    variants['MFLAG_BIDIR'] = np.where(variants['BIDIR'] == 0, 1, 0)
+    variants['MFLAG_DIR'] = np.where(variants['DIRPROP'] == 0, 1, 0)
     return(variants)
 
 ## FILTER AND EXPORT
@@ -653,24 +670,27 @@ def filter_export(variants, outdir, name, mode):
         f.write(f'####\nMode: {mode}\n')
         f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
+        f.write(f'MFLAG_CALL: Not called by any callers i.e. caveman, '
+                f'strelka or mutect: {variants["MFLAG_CALL"].sum()}\n')
         f.write(f'MFLAG_PANEL: Variant not in BED file of '
                 f'regions to keep: {variants["MFLAG_PANEL"].sum()}\n')
         f.write(f'MFLAG_DROP: Variant in excluded gene: '
                 f'{variants["MFLAG_DROP"].sum()}\n')
         f.write(f'MFLAG_IGH: In IGH locus: {variants["MFLAG_IGH"].sum()}\n')
-        f.write(f'MFLAG_MAF: MAF > 3 % in exac/1000genomes: '
+        f.write(f'MFLAG_MAF: MAF > 3 % in normal databases: '
                 f'{variants["MFLAG_MAF"].sum()}\n')
         f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC '
                 f'(exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS IF not in cosmic, previously '
-                f'known in MM, not stopgain, splicesite..: '
+        f.write(f'MFLAG_NONPASS: NON-PASS non-synonymous mutations'
+                f' IF not exact/pos cosmic or previously known in MM: '
                 f'{variants["MFLAG_NONPASS"].sum()}\n')
         f.write(f'MFLAG_NORM: Variant exact or pos in >0 good normals: '
                 f'{variants["MFLAG_NORM"].sum()}\n')
         f.write(f'MFLAG_VAF: Remove NON-PASS calls with target '
-                f'VAF < 1 %: {variants["MFLAG_VAF"].sum()}\n')
-        f.write(f'MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads '
-                f'on one strand): {variants["MFLAG_BIDIR"].sum(0)}\n')
+                f'VAF < 1 %, reference VAF > 1 % or '
+                f'VAF not reported: {variants["MFLAG_VAF"].sum()}\n')
+        f.write(f'MFLAG_DIR: Remove variants DIRPROP = 0 (only reads '
+                f'on one strand): {variants["MFLAG_DIR"].sum(0)}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
@@ -695,11 +715,12 @@ def process(
 
     ## ANNOTATIONS
     variants = annotate_cosmic(variants)
-    if genes:
+    #if genes:
         # Only runs if a path was passed to optional argument "gene"
-        variants = annotate_genefreq(variants, genes)
+    #    variants = annotate_genefreq(variants, genes)
         # Replace this with mutation frequency from MMRF? (and other raw data?)
     variants = annotate_maf(variants)
+    variants = annotate_vaf_dep(variants)
     variants = annotate_normals(variants, normals)
     variants = annotate_mmrf(variants, mmrf)
     variants = annotate_bolli(variants, bolli)
@@ -710,16 +731,17 @@ def process(
     variants = annotate_known(variants, mytype)
 
     ## FILTERS
+    variants = filter_call(variants)
     variants = filter_panel(variants, genes_bed)
     if genes_drop:
         variants = filter_drop(variants, genes_drop)
     variants = filter_igh(variants, igh)
     variants = filter_maf(variants)
-    variants = filter_maf_cosmic(variants, mode)
+    variants = filter_maf_cosmic(variants, mode) # Also include other historical cohorts than cosmic?
     variants = filter_nonpass(variants, mode)
     variants = filter_normals(variants)
     variants = filter_vaf(variants)
-    variants = filter_bidir(variants)
+    variants = filter_dir(variants)
 
     ## OUTPUT
     name = namecore(infile)
