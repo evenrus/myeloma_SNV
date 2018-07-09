@@ -6,76 +6,62 @@
 [![docker badge][docker_badge]][docker_base]
 [![docker badge][automated_badge]][docker_base]
 
-Program for processing SNV or indel calls from myTYPE with myeloma-specific annotations and filters.
-
-Development on-going.
 
 ## Description
 
-Takes as input a file containing indel or SNV calls in .csv or .tsv.gz format.
+Post-processing of targeted snv or indel data. Adapted to output-format
+from leukgen/click_annotvcf. Custom panel-agnostic filtering with options
+to include/exclude  genes and/or regions.  Optional annotation with
+myeloma databases.
 
-### Mandatory columns in input file
+Development on-going.
 
-ID_VARIANT = Unique identifier of each variant  
-CHR = chromosome (int)  
-START = variant start position (int)  
-STOP = variant stop position (int)  
-GENE = Gene name (str)  
-TARGET_VAF = Variant allele frequency of variant (num)  
-EFFECT = predicted effect of variant, e.g. 'non_synonymous_codon'  
-BIDIR = 1 if reads supporting variant is found on both strands, 0 otherwise  
-FILTER = 'PASS' if variant has passed all previously applied variant caller filters.  
-COSMIC = Cosmic annotation  
-*_MAF = Frequency of mutation in EXAC populations and 1000 genomes database.  
+### Features
 
-### Annotations:
+Applies the following filters:  
+    1. Pass by 1 or more callers  
+    2. Target VAF > threshold (defalut 2 %)  
+    3. Target depth > 100  
+    4. Mutation supported by 1 or more reads on each strand  
+    5. No SE or SR flag  
+    6. Maximal population frequency < 0.005. If frequency 0.0025-0.005, remove missense mutations except in BRCA1, BRCA2 and TP53.  
 
-Data from the following datasets are incorporated as annotations for each variant:  
-- 16 internal normals sequenced by myTYPE  
-- MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)  
-- Bolli Leukemia 2017 (418 targeted sequencing, manually curated)  
-- Lohr Cell 2014 203 WES/WGS  
-- myTYPE: Database of previously manually annotated variants  
-
-### Filtering by myeloma (M) FLAGs:
-
-- MFLAG_PANEL: Gene not in panel  
-- MFLAG_IGH: In IGH locus  
-- MFLAG_MAF: MAF > 3 % in exac/1000genomes  
-- MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC. For SNVs: Only EXACT/POS in COSMIC counts as match.  
-- MFLAG_NONPASS: NON-PASS IF not in COSMIC and not previously known in MM. For SNVs: Only EXACT/POS in COSMIC counts as match, and only missense mutations can be removed by this filter (i.e. 'non_synonymous_codon')  
-- MFLAG_NORM: Variant in 1 or more good normal control run by myTYPE  
-- MFLAG_VAF: Remove variants with target VAF < 1 %  
-- MFLAG_BIDIR: Remove variants BIDIR = 0 (only reads on one strand)  
+Optional:  
+    1. Filtering based on panel-specific good normals  
+    2. Filtering based on gene lists and BED regions.  
+    3. Annotation with myeloma datasets.  
+      - 16 internal normals sequenced by myTYPE  
+      - MMRF CoMMpass IA9 (889 WES, matched normal, not manually curated)  
+      - Bolli Leukemia 2017 (418 targeted sequencing, manually curated)  
+      - Lohr Cell 2014 203 WES/WGS  
+      - myTYPE: Database of previously manually annotated variants  
 
 ### Output files
 
-Variants with no MFLAGs are output into a file for 'good calls'. Other variants are output as 'bad calls'. A run summary report including flag statistics is created into the same folder. 
+Variants passing all filters are annotated with optional datasets and written to csv ("goodcalls"). Failed variants are not annotated, but but also provided as output ("badcalls").
 
 ## Options
 
-  --mode [snv|indel]:    Set input variant type: snv or indel  [required]  
-  --outdir:        Path to output directory.  [required]  
+Required arguments:  
+
+  --outdir:        Path to output directory.   
   --infile:        Path to input file with merged SNV calls in tsv.gz or
-                       csv format  [required]  
-  --skiplines:  Number of lines to skip at the top of input file when
-                       importing.  [default: 0]  
-  --genes:         Excel file with column 'GENES'. Used to filter out
-                       variants in other genes.  [required]  
-  --genes_bed:     Bed file containing panel regions, to filter out
-                       outside calls.  [required]  
-  --igh:           BED file with IGH locus to filter out overlapping
-                       calls.  [required]  
-  --mmrf:          Path to MMRF reference file, tab separated text
-                       [required]  
-  --bolli:         Path to Bolli reference file, tab separated text
-                       [required]  
-  --lohr:          Path to Lohr reference file - tab separated hg19
-                       format.  [required]  
-  --normals:       Path to good normal calls in tsv.gz format  [required]  
-  --mytype:        Path to manually annotated myTYPE data in csv format  
-  --version:            Show the version and exit.  
-  --help:               Show this message and exit.  
+                   csv format.  
+
+Optional arguments:  
+
+  --normals:       Path to good normal calls in tsv.gz format  
+  --vaf:           VAF threshold for filtering [default 0.02]  
+  --genes:         Mutation frequencies by gene in excel-file. Colnames:
+                   GENE and *freq*  
+  --genes_bed:     BED-file of regions to keep.  
+  --igh:           BED-file of regions to remove (e.g. IGH-region).  
+  --mmrf:          MMRF reference file, tab separated text.  
+  --bolli:         Bolli reference file, tab separated text.   
+  --lohr:          Lohr reference file, tab separated text, hg19.  
+  --mytype:        Manually annotated myTYPE data, csv file.    
+  --version:       Show the version and exit.  
+  --help:          Show this message and exit.  
 
 ## Credits
 

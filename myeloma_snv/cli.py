@@ -28,11 +28,6 @@ from myeloma_snv import commands
 
 @click.command()
 @click.option(
-    "--mode",
-    required=True,
-    type=click.Choice(["snv", "indel"]),
-    help="Set input variant type: snv or indel")
-@click.option(
     "--outdir",
     required=True,
     type=click.Path(exists=True, dir_okay=True, resolve_path=True),
@@ -43,62 +38,73 @@ from myeloma_snv import commands
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
     help="Path to input file with merged SNV calls in tsv.gz or csv format")
 @click.option(
+    "--normals",
+    required=False,
+    type=click.Path(file_okay=True, readable=True, resolve_path=True),
+    help="Path to good normal calls csv file")
+@click.option(
+    "--vaf",
+    required=False,
+    default=0.02,
+    type=float,
+    help="VAF threshold for filtering (default 0.02)")
+@click.option(
     "--genes",
     required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Mutation frequencies by gene in excel-file. Cnames: GENE and *freq*")
+    help="Mutation frequencies by gene in excel-file. Colnames: GENE and *freq*")
 @click.option(
     "--genes_drop",
     required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="List of genes to filter out. Cname: GENE")
+    help="Name of genes to filter out in excel-file. Colname: GENE")
 @click.option(
     "--genes_bed",
-    required=True,
+    required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Bed file genes to keep.")
+    help="BED-file of regions to keep.")
 @click.option(
     "--igh",
-    required=True,
+    required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="BED file with IGH locus to filter out overlapping calls.")
+    help="BED-file of regions to remove (e.g. IGH-region).")
 @click.option(
     "--mmrf",
-    required=True,
+    required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to MMRF reference file, tab separated text")
+    help=" MMRF reference file, tab separated text")
 @click.option(
     "--bolli",
-    required=True,
+    required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to Bolli reference file, tab separated text")
+    help="Bolli reference file, tab separated text")
 @click.option(
     "--lohr",
-    required=True,
+    required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to Lohr reference file - tab separated hg19 format.")
-@click.option(
-    "--normals",
-    required=True,
-    type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to good normal calls in tsv.gz format")
+    help="Lohr reference file, tab separated text, hg19.")
 @click.option(
     "--mytype",
     required=False,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to manually annotated myTYPE data in csv format")
+    help="Manually annotated myTYPE data, csv file")
 @click.version_option(__version__)
 
-def main(mode, outdir, infile, genes, genes_drop, genes_bed,
-         igh, mmrf, bolli, lohr, normals, mytype):
+def main(outdir, infile, normals, vaf, genes, genes_drop, genes_bed,
+         igh, mmrf, bolli, lohr, mytype):
     r"""
-    Post-processing script for SNV and indel data from myTYPE
-    with myeloma-specific annotations and filters
+    Post-processing of targeted snv or indel data.
+    Adapted to output format from leukgen/click_annotvcf.
+    Custom panel-agnostic filtering with options to include/exclude 
+    genes and/or regions. 
+    Optional annotation with myeloma databases. 
+
     """
     commands.process(
-        mode=mode,
         infile=infile,
         outdir=outdir,
+        normals=normals,
+        vaf=vaf,
         genes=genes,
         genes_drop=genes_drop,
         genes_bed=genes_bed,
@@ -106,6 +112,5 @@ def main(mode, outdir, infile, genes, genes_drop, genes_bed,
         mmrf=mmrf,
         bolli=bolli,
         lohr=lohr,
-        normals=normals,
         mytype=mytype
         )
