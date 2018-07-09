@@ -473,6 +473,7 @@ def annotate_known(variants, mytype):
     """
 
     # Only run function if data is passed to the optional variable "mytype"
+    """
     if mytype:
         mytype_annot = variants['myTYPE_Annotation'].tolist()
         myTYPE_somatic = []
@@ -490,7 +491,8 @@ def annotate_known(variants, mytype):
         variants['myTYPE_somatic'] = myTYPE_somatic
     else:
         variants['myTYPE_somatic'] = 0
-
+    """
+    variants['myTYPE_somatic'] = 0
     # Define column KNOWN_MM based on annotation data
     variants['KNOWN_MM'] = np.where((variants['myTYPE_somatic'] == 1) |
                                     (variants['MMRF_Class'].notnull()) |
@@ -501,13 +503,6 @@ def annotate_known(variants, mytype):
     return(variants)
 
 ## APPLY FLAGS FOR FILTERING
-def filter_call(variants):
-    """
-    Filter MFLAG_CALL: Keep variants passed by 2 or more callers
-    """
-    variants['MFLAG_CALL'] = np.where(variants['NUMBER_OF_CALLERS'] < 2, 1, 0)
-    return(variants)
-
 def filter_panel(variants, genes_bed):
     """
     Filter MFLAG_PANEL: 1 if variant is not in BED file of regions to keep
@@ -584,38 +579,46 @@ def filter_normals(variants):
                                       .isin(match), 1, 0)
     return(variants)
 
-def filter_nonpass(variants, mode):
+def filter_callers(variants, mode):
     """
-    Filter MFLAG_MAF: 1 if NON-PASS AND not in cosmic or previously known in MM
-    Indels: Counts as "in cosmic" like for MAFCOS flag.
-    SNV:    Only removes missense mutations with this flag
-            Counts as "in cosmic" only if HEME_EXACT
+    MFLAG_CALLERS:
+                1. Keep if passed by >= 2 callers.
+                2. Keep if passed by 1 caller and no flags
+                   (i.e. only detected by that one).
+                3. If passed by 1 caller, keep if present
+                   in cosmic or MM datasets, irrespective
+                   of flags.
+                   Indels count as "in cosmic" if any mention.
+                   SNVs count as "in cosmic" only if exact or pos.
     """
+    # 1.
+    variants['MFLAG_NONPASS'] = np.where(
+        variants['NUMBER_OF_CALLERS'] >= 2, 0, 1)
+    # 2.
+    variants['MFLAG_NONPASS'] = np.where(
+        (variants['NUMBER_OF_CALLERS'] == 1) &
+        (variants['FLAGS_ALL'] == 'PASS'), 0, variants['MFLAG_NONPASS'])
+    # 3.
     if mode == 'snv':
-        drop = ['non_synonymous_codon']
         variants['MFLAG_NONPASS'] = np.where(
-            (variants['FLAGS_ALL'] != 'PASS') &
-            (variants['VAG_EFFECT'].isin(drop)) &
-            (variants['ANY_EXACT_POS'] == 0) &
-            (variants['KNOWN_MM'] == 0), 1, 0)
+            (variants['NUMBER_OF_CALLERS'] == 1) &
+            ((variants['ANY_EXACT_POS'] > 0) |
+             (variants['KNOWN_MM'] == 1)), 0, variants['MFLAG_NONPASS'])
         return(variants)
     variants['MFLAG_NONPASS'] = np.where(
-        (variants['FLAGS_ALL'] != 'PASS') &
-        (variants['COSMIC'].isnull()) &
-        (variants['KNOWN_MM'] == 0), 1, 0)
+        (variants['NUMBER_OF_CALLERS'] == 1) &
+        ((variants['COSMIC'].notnull()) |
+         (variants['KNOWN_MM'] == 1)), 0, variants['MFLAG_NONPASS'])
     return(variants)
 
 def filter_vaf(variants):
     """
-    Filter MFLAG_VAF:1 if non-pass and 
-                    target VAF < 1 % or
-                    not estimated (i.e. 0), or 
-                    reference VAF is > 1%.
+    Filter MFLAG_VAF:
+                Remove if target VAF < 1 % or
+                not estimated (i.e. 0).
     """
     variants['MFLAG_VAF'] = np.where(
-        (variants['FLAGS_ALL'] != 'PASS') &
-        ((variants['TARGET_VAF'] < 0.01) | 
-        (variants['REFERENCE_VAF'] > 0.01)), 1, 0)
+        variants['TARGET_VAF'] < 0.01, 1, 0)
     return(variants)
 
 ## FILTER AND EXPORT
@@ -666,8 +669,6 @@ def filter_export(variants, outdir, name, mode):
         f.write(f'####\nMode: {mode}\n')
         f.write(f'Imported calls: {variants.shape[0]}\n')
         f.write('Flagging variants for filtering:\n')
-        f.write(f'MFLAG_CALL: Remove if passed by < 2 callers: '
-                f'{variants["MFLAG_CALL"].sum()}\n')
         f.write(f'MFLAG_PANEL: Variant not in BED file of '
                 f'regions to keep: {variants["MFLAG_PANEL"].sum()}\n')
         f.write(f'MFLAG_DROP: Variant in excluded gene: '
@@ -677,14 +678,20 @@ def filter_export(variants, outdir, name, mode):
                 f'{variants["MFLAG_MAF"].sum()}\n')
         f.write(f'MFLAG_MAFCOS: MAF > 0.1 % and not in COSMIC '
                 f'(exact/pos): {variants["MFLAG_MAFCOS"].sum()}\n')
-        f.write(f'MFLAG_NONPASS: NON-PASS non-synonymous mutations'
-                f' IF not exact/pos cosmic or previously known in MM: '
-                f'{variants["MFLAG_NONPASS"].sum()}\n')
+        f.write(f'MFLAG_CALLERS:\n'
+                f'1. Keep if passed by >= 2 callers.\n'
+                f'2. Keep if passed by 1 caller and no flags\n'
+                f'   (i.e. only detected by that one).\n'
+                f'3. If passed by 1 caller, keep if present\n'
+                f'   in cosmic or MM datasets, irrespective\n'
+                f'   of flags.\n'
+                f'   Indels count as "in cosmic" if any mention.\n'
+                f'   SNVs count as "in cosmic" only if exact/pos\n'
+                f'Calls removed: {variants["MFLAG_NONPASS"].sum()}\n')
         f.write(f'MFLAG_NORM: Variant exact or pos in >0 good normals: '
                 f'{variants["MFLAG_NORM"].sum()}\n')
-        f.write(f'MFLAG_VAF: Remove NON-PASS calls with target '
-                f'VAF < 1 %, reference VAF > 1 % or '
-                f'VAF not reported: {variants["MFLAG_VAF"].sum()}\n')
+        f.write(f'MFLAG_VAF: Remove calls with target VAF < 1: '
+                f'{variants["MFLAG_VAF"].sum()}\n')
         f.write(f'Removing calls with >= 1 MFLAG: {bad.shape[0]}\n')
         f.write(f'Calls passed filters: {good.shape[0]}\n')
     return()
@@ -725,7 +732,6 @@ def process(
     variants = annotate_known(variants, mytype)
 
     ## FILTERS
-    variants = filter_call(variants)
     variants = filter_panel(variants, genes_bed)
     if genes_drop:
         variants = filter_drop(variants, genes_drop)
@@ -733,7 +739,7 @@ def process(
     variants = filter_maf(variants)
     variants = filter_maf_cosmic(variants, mode) # Also include other historical cohorts than cosmic?
     variants = filter_normals(variants)
-    variants = filter_nonpass(variants, mode)
+    variants = filter_callers(variants, mode)
     variants = filter_vaf(variants)
 
     ## OUTPUT
