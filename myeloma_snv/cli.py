@@ -36,7 +36,7 @@ from myeloma_snv import commands
     "--infile",
     required=True,
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to input file with merged SNV calls in tsv.gz or csv format")
+    help="Path to input file with merged snv or indel calls in tsv.gz or csv format")
 @click.option(
     "--normals",
     required=False,

@@ -45,7 +45,7 @@ Variants passing all filters are annotated with optional datasets and written to
 Required arguments:  
 
   --outdir:        Path to output directory.   
-  --infile:        Path to input file with merged SNV calls in tsv.gz or
+  --infile:        Path to input file with merged snv or indel calls in tsv.gz or
                    csv format.  
 
 Optional arguments:  
