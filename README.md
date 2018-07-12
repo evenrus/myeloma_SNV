@@ -22,9 +22,10 @@ Applies the following filters:
     1. Pass by 1 or more callers  
     2. Target VAF > threshold (defalut 2 %)  
     3. Target depth > 100  
-    4. Mutation supported by 1 or more reads on each strand  
-    5. No SE or SR flag  
-    6. Maximal population frequency < 0.005. If frequency 0.0025-0.005, remove missense mutations except in BRCA1, BRCA2 and TP53.  
+    4. Mutation supported by 1 or more reads on each strand (when available data)
+    5. At least 5 reads supporting mutation (when available data)    
+    6. No SE or SR flag  
+    7. Maximal population frequency < 0.005. If frequency 0.0025-0.005, remove missense mutations except in BRCA1, BRCA2 and TP53.  
 
 Optional:  
     1. Filtering based on panel-specific good normals  

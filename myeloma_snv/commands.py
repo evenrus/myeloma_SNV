@@ -43,9 +43,21 @@ def import_variants(path):
         print(f'Loaded file containing {variants.shape[0]} '
               f'variant calls. Processing...')
         return(variants)
+    elif re.search('.tsv$', path):
+        try:
+            variants = pd.read_csv(
+                filepath_or_buffer=path,
+                sep='\t',
+                comment='#',
+                low_memory=False)
+        except NameError:
+            raise Exception(f'Error when importing file {path}')
+        print(f'Loaded file containing {variants.shape[0]} '
+              f'variant calls. Processing...')
+        return(variants)
     else:
         raise Exception(f'Input file {path} has unsupported '
-                        f'extension: try .csv or .tsv.gz')
+                        f'extension: try .csv, .tsv or .tsv.gz')
 
 def determine_type(variants):
     len_var = variants['REF'].head(50)
@@ -119,12 +131,15 @@ def filter_maf(variants):
 def filter_qual(variants, mode):
     """
     Keep if reads on both strands
+    Keep if 5 or more supporting reads
     Keep if no SE or SR flag
     """
     vars_out = variants[((variants['mutect_READS_FORWARD'].isnull()) |
                         (variants['mutect_READS_FORWARD'] >0)) &
                         ((variants['mutect_READS_REVERSE'].isnull()) |
-                        (variants['mutect_READS_REVERSE'] >0))]
+                        (variants['mutect_READS_REVERSE'] > 0)) &
+                        ((variants['mutect_READS_FORWARD'].isnull()) |
+                        ((variants['mutect_READS_FORWARD'] + variants['mutect_READS_FORWARD']) > 4))]
 
     if mode == 'snv':
         vars_out = variants[(variants['FLAG_SE'] == 0) &
@@ -132,7 +147,9 @@ def filter_qual(variants, mode):
                             ((variants['caveman_READS_FORWARD'].isnull()) |
                             (variants['caveman_READS_FORWARD'] >0)) &
                             ((variants['caveman_READS_REVERSE'].isnull()) |
-                            (variants['caveman_READS_REVERSE'] >0))]
+                            (variants['caveman_READS_REVERSE'] >0)) &
+                            ((variants['caveman_READS_FORWARD'].isnull()) |
+                            ((variants['caveman_READS_FORWARD'] + variants['caveman_READS_FORWARD']) > 4))]
     return(vars_out)
 
 def filter_panel(variants, genes_bed):
