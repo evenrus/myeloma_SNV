@@ -81,6 +81,7 @@ def annotate_vaf_dep(variants):
     variants['REFERENCE_DEPTH'] = np.where(
         variants['REFERENCE_DEPTH'].isnull(), 0, variants['REFERENCE_DEPTH'])
     variants['DIRPROP'] = variants.filter(regex='DIRPROP').mean(axis=1)
+
     return(variants)
 
 def annotate_maf(variants):
@@ -673,7 +674,7 @@ def process(
     filtering = filter_callers(variants)
     filtering = filter_vaf_dep(filtering, vaf)
     filtering = filter_maf(filtering)
-    filtering = filter_qual(filtering, mode)
+    # filtering = filter_qual(filtering, mode) - not using this filter until we can figure out strand support. 
     if genes_bed:
         filtering = filter_panel(filtering, genes_bed)
     if genes_drop:
