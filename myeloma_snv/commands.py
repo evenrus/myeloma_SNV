@@ -104,6 +104,29 @@ def filter_callers(variants):
     vars_out = variants[variants['NUMBER_OF_CALLERS'] > 0]
     return(vars_out)
 
+def filter_vartype(variants):
+    """
+    Keep coding variants (VAG_EFFECT)
+    """
+
+    # Variants considered as coding. Copied from leukgen/click_annotvcf 8.24.2018
+    CODING_EFFECT = [
+        "initiator_codon_change",
+        "non_synonymous_codon",
+        "splice_site_variant",
+        "stop_gained",
+        "stop_lost",
+        "stop_retained_variant",
+        "complex_change_in_transcript",
+        "frameshift_variant",
+        "inframe_codon_gain",
+        "inframe_codon_loss",
+        "inframe_variant"]
+
+    vars_out = variants[variants["VAG_EFFECT"].isin(CODING_EFFECT)]
+
+    return(vars_out)
+
 def filter_vaf_dep(variants, vaf):
     """
     Keep if Target VAF > cut-off (default 2 %).
@@ -202,80 +225,16 @@ def filter_igh(variants, igh_path):
     
     vars_out = variants[~variants.ID_VARIANT.isin(flaglist)]
     return(vars_out)
-## 2ND ANNOTATION
-## Annotate with information needed for variant filtering
-
-def annotate_normals(variants, path_normals):
-    """
-    Annotates variants with internal normal controls:
-    Class:      Close   (chr, start within 10 bp),
-                Pos     (chr, start),
-                Exact   (chr, start, ref, alt)
-    Positions:  START position
-    Change:     REF > ALT
-    """
-    normals = pd.read_csv(
-        filepath_or_buffer=path_normals)
-    
-    # Ensure appropriate data type
-    variants["START"] = variants["START"].astype(np.int64)
-    variants["END"] = variants["END"].astype(np.int64)
-
-    normals = normals.set_index(['CHROM','POS']).sort_index()
-    
-    def annot_row(row, data):
-        thres = 10
-        chrom = str(row['CHR'])
-        start = row['START']
-        po = (chrom, start) in data.index
-        close = data.ix[(chrom, start-thres):(chrom, start+thres)]
-        if po:
-            pos = data.loc[(chrom, start)]
-            exact = pos[(pos['REF'] == row['REF']) & (pos['ALT'] == row['ALT'])]
-            if len(exact) > 0:
-                ex_out = ['genomic_exact',
-                          start,
-                          exact['REF'].iloc[0] + '>' + exact['ALT'].iloc[0]
-                         ]
-                return pd.Series(ex_out)
-            else:
-                pos_out = ['genomic_pos',
-                           ', '.join([str(i) for i in pos.index.\
-                                      get_level_values('POS').tolist()]),
-                           ', '.join([str(a) + '>' + str(b) for a, b in \
-                           zip(pos['REF'], pos['ALT'])])
-                          ]
-                return pd.Series(pos_out)
-        elif close.shape[0] > 0:
-            cl_out = ['genomic_close',
-                      ', '.join([str(i) for i in close.index.\
-                                 get_level_values('POS').tolist()]),
-                      ', '.join(set([str(a) + '>' + str(b) for a, b in \
-                      zip(close['REF'].tolist(), close['ALT'].tolist())]))
-                     ]
-            return pd.Series(cl_out)
-        else:
-            return pd.Series([None]*3)
-
-    out_names = ["_Class", "_Position", "_Change"]
-    out_names = ['Normals' + s for s in out_names]
-
-    variants[out_names] = variants.apply(lambda row: annot_row(row, normals),
-                                         axis=1)
-    return(variants)
-
-## 2ND FILTERS
-## Remove calls based custom annotation
 
 def filter_normals(variants):
     """
     Remove if variant has genomic exact or pos in normals
     """
-    match = ['genomic_exact', 'genomic_pos']
-    vars_out = variants[~variants['Normals_Class'].isin(match)]
+    match = ['genomic_exact', 'genomic_same_pos']
+    vars_out = variants[~variants['NORMALS_Match_Class'].isin(match)]
     return(vars_out)
 
-## 3RD ANNOTATION
+## 2ND ANNOTATION
 ## Final variant annotation
 
 def annotate_cosmic(variants):
@@ -652,7 +611,6 @@ def filter_export(allcalls, goodcalls, outdir, name, mode, vaf):
 def process(
         infile,
         outdir,
-        normals,
         vaf,
         genes,
         genes_drop,
@@ -672,6 +630,7 @@ def process(
 
     ## 1ST FILTERS
     filtering = filter_callers(variants)
+    filtering = filter_vartype(filtering)
     filtering = filter_vaf_dep(filtering, vaf)
     filtering = filter_maf(filtering)
     # filtering = filter_qual(filtering, mode) - not using this filter until we can figure out strand support. 
@@ -681,15 +640,11 @@ def process(
         filtering = filter_drop(filtering, genes_drop)
     if igh:
         filtering = filter_igh(filtering, igh)
-
-    ## 2ND ANNOTATION AND FILTERS
-    ## Annotate and filter with normals
     
-    if normals:
-        filtering = annotate_normals(filtering, normals)
+    if 'NORMALS_Match_Class' in filtering.columns:
         filtering = filter_normals(filtering)
 
-    ## 3RD ANNOTATION
+    ## 2ND ANNOTATION
     ## Final variant annotation
 
     annotation = annotate_cosmic(filtering)

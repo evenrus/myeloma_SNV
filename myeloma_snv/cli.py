@@ -38,11 +38,6 @@ from myeloma_snv import commands
     type=click.Path(file_okay=True, readable=True, resolve_path=True),
     help="Path to input file with merged snv or indel calls in tsv.gz or csv format")
 @click.option(
-    "--normals",
-    required=False,
-    type=click.Path(file_okay=True, readable=True, resolve_path=True),
-    help="Path to good normal calls csv file")
-@click.option(
     "--vaf",
     required=False,
     default=0.02,
@@ -90,7 +85,7 @@ from myeloma_snv import commands
     help="Manually annotated myTYPE data, csv file")
 @click.version_option(__version__)
 
-def main(outdir, infile, normals, vaf, genes, genes_drop, genes_bed,
+def main(outdir, infile, vaf, genes, genes_drop, genes_bed,
          igh, mmrf, bolli, lohr, mytype):
     r"""
     Post-processing of targeted snv or indel data.
@@ -103,7 +98,6 @@ def main(outdir, infile, normals, vaf, genes, genes_drop, genes_bed,
     commands.process(
         infile=infile,
         outdir=outdir,
-        normals=normals,
         vaf=vaf,
         genes=genes,
         genes_drop=genes_drop,
