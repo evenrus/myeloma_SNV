@@ -633,7 +633,7 @@ def process(
     filtering = filter_vartype(filtering)
     filtering = filter_vaf_dep(filtering, vaf)
     filtering = filter_maf(filtering)
-    # filtering = filter_qual(filtering, mode) - not using this filter until we can figure out strand support. 
+    filtering = filter_qual(filtering, mode)
     if genes_bed:
         filtering = filter_panel(filtering, genes_bed)
     if genes_drop:
